@@ -1,0 +1,124 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// 1. Tashkilot (SaaS asosi)
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  subscription String   @default("free")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  products    Product[]
+  warehouses  Warehouse[]
+  movements   StockMovement[]
+}
+
+// 2. Foydalanuvchilar (Auth uchun)
+model User {
+  id             String       @id @default(cuid())
+  email          String       @unique
+  name           String?
+  passwordHash   String
+  role           Role         @default(WORKER)
+  
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  WORKER
+}
+
+// 3. Omborlar (Haqiqiy jismoniy joylar)
+model Warehouse {
+  id             String       @id @default(cuid())
+  name           String
+  address        String?
+  
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  
+  stockLevels    StockLevel[]
+  movementsFrom  StockMovement[] @relation("FromWarehouse")
+  movementsTo    StockMovement[] @relation("ToWarehouse")
+}
+
+// 4. Mahsulot va Xomashyo (Yagona model)
+model Product {
+  id             String       @id @default(cuid())
+  name           String
+  sku            String?      
+  unit           String       @default("dona") // KG, METER, PIECE
+  isRawMaterial  Boolean      @default(false)  // true = Xomashyo, false = Tayyor mahsulot
+  price          Decimal      @db.Decimal(10, 2)
+  
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  
+  // Resept mantiqi (BOM)
+  bomItems       BOM[]        @relation("FinishedProduct")
+  usedInBoms     BOM[]        @relation("RawMaterial")
+  
+  stockLevels    StockLevel[]
+  movements      StockMovement[]
+}
+
+// 5. BOM (Recipe)
+model BOM {
+  id             String  @id @default(cuid())
+  productId      String  // Qaysi mahsulot uchun resept?
+  product        Product @relation("FinishedProduct", fields: [productId], references: [id], onDelete: Cascade)
+  materialId     String  // Qaysi xomashyo ishlatiladi?
+  material       Product @relation("RawMaterial", fields: [materialId], references: [id])
+  quantityNeeded Float   // 1 ta mahsulot uchun qancha kerak?
+}
+
+// 6. Inventarizatsiya (Har bir ombor uchun alohida)
+model StockLevel {
+  id             String    @id @default(cuid())
+  productId      String
+  product        Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warehouseId    String
+  warehouse      Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  quantity       Float     @default(0)
+
+  @@unique([productId, warehouseId])
+}
+
+// 7. Harakatlar Auditi
+model StockMovement {
+  id              String       @id @default(cuid())
+  type            MovementType
+  quantity        Float
+  
+  productId       String
+  product         Product      @relation(fields: [productId], references: [id])
+  
+  fromWarehouseId String?
+  fromWarehouse   Warehouse?   @relation("FromWarehouse", fields: [fromWarehouseId], references: [id])
+  toWarehouseId   String?
+  toWarehouse     Warehouse?   @relation("ToWarehouse", fields: [toWarehouseId], references: [id])
+  
+  note            String?
+  creatorId       String?      // Qaysi foydalanuvchi qildi?
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  createdAt       DateTime     @default(now())
+}
+
+enum MovementType {
+  IN
+  OUT
+  PRODUCTION
+  TRANSFER
+  ADJUSTMENT
+}
