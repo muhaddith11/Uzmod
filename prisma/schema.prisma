@@ -14,6 +14,17 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Ish tartibi (Toshkent vaqti): davomat, kechikish va tabel shu bo'yicha hisoblanadi
+  workStartTime    String @default("08:00")
+  workEndTime      String @default("18:00")
+  lateGraceMinutes Int    @default(10)
+  // ISO hafta kunlari: 1 = dushanba ... 7 = yakshanba
+  workDays         String @default("1,2,3,4,5,6")
+  // Sex joylashuvi — berilsa, xodim faqat shu radius ichida kelish/ketishni belgilay oladi
+  geoLat           Float?
+  geoLng           Float?
+  geoRadiusM       Int?
+
   users            User[]
   products         Product[]
   warehouses       Warehouse[]
@@ -26,6 +37,7 @@ model Organization {
   debtPayments     DebtPayment[]
   suppliers        Supplier[]
   supplierPayments SupplierPayment[]
+  attendance       Attendance[]
 }
 
 // 2. Foydalanuvchilar (Auth uchun)
@@ -43,6 +55,8 @@ model User {
   isActive                   Boolean   @default(true)
   // Parol almashtirilsa yoki xodim bloklansa oshiriladi — eski JWT'lar yaroqsiz bo'ladi
   sessionVersion             Int       @default(0)
+  // Davomatda: qo'shilgan kundan oldingi kunlar "kelmagan" hisoblanmaydi
+  createdAt                  DateTime  @default(now())
 
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -56,6 +70,8 @@ model User {
   createdDebtPayments     DebtPayment[]     @relation("DebtPaymentCreator")
   createdAdjustments      StaffAdjustment[] @relation("AdjustmentCreator")
   createdSupplierPayments SupplierPayment[] @relation("SupplierPaymentCreator")
+  attendance              Attendance[]      @relation("AttendanceUser")
+  editedAttendance        Attendance[]      @relation("AttendanceEditor")
 
   @@index([organizationId])
 }
@@ -418,4 +434,51 @@ model RateLimit {
   key     String   @id
   count   Int      @default(0)
   resetAt DateTime
+}
+
+// 15. Davomat — har bir xodim uchun kuniga bitta yozuv (Toshkent kuni)
+model Attendance {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation("AttendanceUser", fields: [userId], references: [id], onDelete: Cascade)
+  // YYYY-MM-DD, Toshkent vaqti bo'yicha
+  date   String
+  status AttendanceStatus @default(PRESENT)
+
+  checkIn  DateTime?
+  checkOut DateTime?
+  // O'zi belgilaganda joylashuv va sexgacha masofa (metr) — nazorat uchun saqlanadi
+  checkInLat        Float?
+  checkInLng        Float?
+  checkInDistanceM  Int?
+  checkOutLat       Float?
+  checkOutLng       Float?
+  checkOutDistanceM Int?
+
+  source AttendanceSource @default(SELF)
+  note   String?
+
+  // Menejer qo'lda kiritgan yoki tuzatgan bo'lsa
+  editedById String?
+  editedBy   User?   @relation("AttendanceEditor", fields: [editedById], references: [id], onDelete: SetNull)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([userId, date])
+  @@index([organizationId, date])
+}
+
+enum AttendanceStatus {
+  PRESENT
+  SICK
+  VACATION
+  EXCUSED
+}
+
+enum AttendanceSource {
+  SELF
+  MANAGER
 }

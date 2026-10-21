@@ -43,6 +43,7 @@ export function fields(t: Messages) {
     email: () => z.string({ error: V.email }).trim().toLowerCase().pipe(z.email({ error: V.email })),
     newPassword: () => z.string({ error: V.passwordMin(8) }).min(8, V.passwordMin(8)).max(200, V.tooLong(t.auth.password, 200)),
     anyNumber: (label: string) => z.preprocess(toNumberInput, number(label)),
+    optionalNumber: (label: string) => z.preprocess(toNumberInput, number(label).optional()),
     positive: (label: string) => z.preprocess(toNumberInput, number(label).gt(0, V.positive(label))),
     nonNegative: (label: string) => z.preprocess(toNumberInput, number(label).min(0, V.nonNegative(label))),
     optionalNonNegative: (label: string) =>

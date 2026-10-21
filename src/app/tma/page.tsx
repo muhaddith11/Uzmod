@@ -10,10 +10,11 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { CheckInCard } from "@/components/attendance/CheckInCard"
 import { useLocale, useT } from "@/i18n/client"
 import { formatNumber } from "@/lib/format"
 import { QTY_EPSILON } from "@/lib/domain/costing"
-import { HammerIcon, Loader2Icon, CheckCircle2Icon, AlertCircleIcon, LayersIcon, WeightIcon, DiscIcon } from "lucide-react"
+import { HammerIcon, Loader2Icon, CheckCircle2Icon, AlertCircleIcon, LayersIcon, WeightIcon, DiscIcon, ClockIcon } from "lucide-react"
 
 type RollOption = {
   materialId: string
@@ -193,8 +194,11 @@ export default function TMAPage() {
         <div className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-[10px] font-black uppercase">{M.online}</div>
       </header>
 
-      <Tabs defaultValue="production" className="w-full">
-        <TabsList className="grid grid-cols-2 bg-gray-100 rounded-2xl p-1 mb-4 h-12 w-full">
+      <Tabs defaultValue="attendance" className="w-full">
+        <TabsList className="grid grid-cols-3 bg-gray-100 rounded-2xl p-1 mb-4 h-12 w-full">
+          <TabsTrigger value="attendance" className="rounded-xl font-bold text-xs">
+            <ClockIcon className="w-4 h-4 mr-1" /> {M.tabAttendance}
+          </TabsTrigger>
           <TabsTrigger value="production" className="rounded-xl font-bold text-xs">
             <HammerIcon className="w-4 h-4 mr-1" /> {M.tabProduction}
           </TabsTrigger>
@@ -202,6 +206,10 @@ export default function TMAPage() {
             <LayersIcon className="w-4 h-4 mr-1" /> {M.tabRolls}
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="attendance">
+          <CheckInCard className="rounded-3xl" />
+        </TabsContent>
 
         <TabsContent value="production">
           <Card className="rounded-3xl shadow-sm border-none bg-white">

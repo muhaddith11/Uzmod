@@ -54,3 +54,12 @@ export function formatShortDay(value: Date, locale: Locale): string {
 export function roundMoney(value: number): number {
   return Math.round(value * 100) / 100
 }
+
+export function formatTime(value: Date | string, locale: Locale): string {
+  return new Intl.DateTimeFormat(INTL_LOCALE[locale], {
+    timeZone: TIME_ZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(value))
+}

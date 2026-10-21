@@ -19,6 +19,8 @@ import { ExportButton } from "@/components/ExportButton"
 import { getLocale, getT } from "@/i18n/server"
 import { formatDate, formatMoney, formatNumber } from "@/lib/format"
 import { tashkentDateKey } from "@/lib/tz"
+import { buildTimesheet, resolveRange } from "@/lib/attendance"
+import { formatDuration } from "@/lib/domain/attendance"
 import { UserIcon, BanknoteIcon, TrendingUpIcon, PlusIcon, UserPlusIcon, KeyRoundIcon, BanIcon, CheckCircleIcon, ShieldIcon } from "lucide-react"
 
 export default async function WorkersPage({
@@ -33,7 +35,10 @@ export default async function WorkersPage({
   const hasRange = params.from !== undefined || params.to !== undefined
   const range = hasRange ? params : { from: `${today.slice(0, 8)}01`, to: today }
 
-  const [t, locale, staff, workers] = await Promise.all([getT(), getLocale(), getStaff(), getWorkerEarnings(range)])
+  const [t, locale, staff, workers, timesheet] = await Promise.all([
+    getT(), getLocale(), getStaff(), getWorkerEarnings(range), buildTimesheet(me.organizationId, resolveRange(range)),
+  ])
+  const attendanceByUser = new Map(timesheet.map(row => [row.userId, row]))
   const W = t.workers
   const activeWorkers = workers.filter(w => w.isActive)
 
@@ -229,6 +234,17 @@ export default async function WorkersPage({
                   <div className="min-w-0">
                     <h3 className="text-xl font-black text-gray-900 truncate">{worker.name ?? worker.email}</h3>
                     <p className="text-xs text-gray-500 font-bold truncate">{worker.email}</p>
+                    {attendanceByUser.has(worker.id) && (() => {
+                      const s = attendanceByUser.get(worker.id)!.summary
+                      return (
+                        <p className="text-xs text-gray-600 mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+                          <span>{t.attendance.colHours}: <b>{formatDuration(s.workedMinutes)}</b></span>
+                          <span>{t.attendance.colPresent}: <b>{s.presentDays}/{s.workingDays}</b></span>
+                          <span className={s.lateCount > 0 ? "text-amber-700" : ""}>{t.attendance.colLateCount}: <b>{s.lateCount}</b></span>
+                          <span className={s.absentDays > 0 ? "text-rose-600" : ""}>{t.attendance.colAbsent}: <b>{s.absentDays}</b></span>
+                        </p>
+                      )
+                    })()}
                   </div>
                 </div>
                 <div className="text-right">

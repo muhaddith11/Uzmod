@@ -43,3 +43,8 @@ export function parseDateRange({ from, to }: DateRangeParams): { gte?: Date; lt?
   if (filter.gte === undefined && filter.lt === undefined) return undefined
   return filter
 }
+
+/** Toshkent vaqtidagi soat:daqiqa — "08:05" (forma maydonlari uchun) */
+export function tashkentTimeKey(date: Date): string {
+  return new Date(date.getTime() + OFFSET_MS).toISOString().slice(11, 16)
+}

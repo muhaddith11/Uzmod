@@ -1,5 +1,8 @@
 import { getDashboardData } from "@/lib/actions/dashboard"
-import { getSessionUser } from "@/lib/session"
+import { getSessionUser, isManagement } from "@/lib/session"
+import { getMyAttendanceToday, getMyMonthSummary, getTodayBoard } from "@/lib/actions/attendance"
+import { CheckInCard } from "@/components/attendance/CheckInCard"
+import { formatDuration } from "@/lib/domain/attendance"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
@@ -8,12 +11,21 @@ import ProductionChart from "@/components/dashboard/ProductionChart"
 import { getLocale, getT } from "@/i18n/server"
 import { formatMoney, formatNumber } from "@/lib/format"
 import {
-  WarehouseIcon, AlertTriangleIcon, BarChart3Icon, ShoppingBagIcon, CalendarIcon, HammerIcon, DiscIcon, BanknoteIcon
+  WarehouseIcon, AlertTriangleIcon, BarChart3Icon, ShoppingBagIcon, CalendarIcon, HammerIcon, DiscIcon, BanknoteIcon, UsersIcon
 } from "lucide-react"
 
 export default async function HomePage() {
-  const [me, data, t, locale] = await Promise.all([getSessionUser(), getDashboardData(), getT(), getLocale()])
+  const me = await getSessionUser()
+  // Davomat ishchi va menejerlarga yuritiladi (admin — egasi)
+  const tracked = me.role !== 'ADMIN'
+  const [data, t, locale, myToday, myMonth, board] = await Promise.all([
+    getDashboardData(), getT(), getLocale(),
+    tracked ? getMyAttendanceToday() : Promise.resolve(null),
+    tracked ? getMyMonthSummary() : Promise.resolve(null),
+    isManagement(me.role) ? getTodayBoard() : Promise.resolve(null),
+  ])
   const D = t.dashboard
+  const A = t.attendance
   const firstName = me.name?.split(' ')[0] ?? ""
 
   return (
@@ -29,13 +41,31 @@ export default async function HomePage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {myToday && myMonth && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <CheckInCard initial={myToday} />
+          <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm p-5 space-y-3">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{A.myMonth}</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <MiniStat label={A.colHours} value={formatDuration(myMonth.workedMinutes)} />
+              <MiniStat label={A.colPresent} value={`${myMonth.presentDays} / ${myMonth.workingDays}`} />
+              <MiniStat label={A.colLateCount} value={String(myMonth.lateCount)} warn={myMonth.lateCount > 0} />
+              <MiniStat label={A.colAbsent} value={String(myMonth.absentDays)} warn={myMonth.absentDays > 0} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className={`grid grid-cols-2 gap-4 ${board ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
+        {board && (
+          <Stat icon={<UsersIcon className="w-5 h-5" />} label={D.atWorkToday} value={`${board.counts.inWork} / ${board.counts.total}`} tone="green" />
+        )}
         <Stat icon={<HammerIcon className="w-5 h-5" />} label={D.producedToday} value={formatNumber(data.producedToday, locale)} tone="indigo" />
         {data.salesToday !== null && (
           <Stat icon={<BanknoteIcon className="w-5 h-5" />} label={D.salesToday} value={formatMoney(data.salesToday, locale)} tone="green" />
         )}
         <Stat icon={<DiscIcon className="w-5 h-5" />} label={D.openRolls} value={formatNumber(data.openRolls, locale)} tone="amber" />
-        <Stat icon={<WarehouseIcon className="w-5 h-5" />} label={D.warehouses} value={formatNumber(data.warehouseCount, locale)} tone="gray" />
+        {!board && <Stat icon={<WarehouseIcon className="w-5 h-5" />} label={D.warehouses} value={formatNumber(data.warehouseCount, locale)} tone="gray" />}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -139,6 +169,15 @@ function Stat({ icon, label, value, tone }: { icon: React.ReactNode; label: stri
         <p className="text-xl md:text-2xl font-black text-gray-900 truncate">{value}</p>
       </div>
       <div className={`p-3 rounded-xl shrink-0 ${TONES[tone]}`}>{icon}</div>
+    </div>
+  )
+}
+
+function MiniStat({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
+  return (
+    <div className="rounded-xl bg-gray-50 p-3">
+      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
+      <p className={`text-xl font-black ${warn ? "text-rose-600" : "text-gray-900"}`}>{value}</p>
     </div>
   )
 }

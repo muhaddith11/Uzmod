@@ -7,7 +7,7 @@ import { getT } from "@/i18n/server"
 import type { Messages } from "@/i18n/messages"
 import {
   Package2Icon, BoxIcon, HammerIcon, DiscIcon, HistoryIcon, LogOutIcon, TruckIcon,
-  UserIcon, ShoppingBagIcon, UsersIcon, WarehouseIcon, BarChart3Icon
+  UserIcon, ShoppingBagIcon, UsersIcon, WarehouseIcon, BarChart3Icon, ClockIcon
 } from "lucide-react"
 
 // Navigatsiya — auth.config.ts dagi ROUTE_ROLES bilan bir xil ruxsatlar.
@@ -20,6 +20,7 @@ const NAV_ITEMS: { href: string; label: keyof Messages["nav"]; icon: React.React
   { href: "/customers", label: "customers", icon: <UsersIcon className="w-4 h-4" />, roles: ['ADMIN', 'MANAGER'] },
   { href: "/suppliers", label: "suppliers", icon: <TruckIcon className="w-4 h-4" />, roles: ['ADMIN', 'MANAGER'] },
   { href: "/workers", label: "workers", icon: <UserIcon className="w-4 h-4" />, roles: ['ADMIN', 'MANAGER'] },
+  { href: "/attendance", label: "attendance", icon: <ClockIcon className="w-4 h-4" />, roles: ['ADMIN', 'MANAGER'] },
   { href: "/warehouses", label: "warehouses", icon: <WarehouseIcon className="w-4 h-4" />, roles: ['ADMIN'] },
   { href: "/finance", label: "finance", icon: <BoxIcon className="w-4 h-4" />, roles: ['ADMIN'] },
   { href: "/reports", label: "reports", icon: <BarChart3Icon className="w-4 h-4" />, roles: ['ADMIN'] },

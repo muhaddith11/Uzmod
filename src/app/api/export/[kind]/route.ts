@@ -5,6 +5,9 @@ import { buildWorkbook, type ExcelColumn } from "@/lib/excel"
 import { parseDateRange, tashkentDateKey, type DateRangeParams } from "@/lib/tz"
 import { getFinancialSummary } from "@/lib/actions/reports"
 import { getWorkerEarnings } from "@/lib/actions/workers"
+import { buildTimesheet, resolveRange, scheduleOf, toDayRecord } from "@/lib/attendance"
+import { evaluateDay } from "@/lib/domain/attendance"
+import { tashkentTimeKey } from "@/lib/tz"
 import { getT } from "@/i18n/server"
 import type { Messages } from "@/i18n/messages"
 
@@ -17,7 +20,104 @@ const MAX_ROWS = 20_000
 
 const who = (u: { name: string | null; email: string } | null) => u?.name ?? u?.email ?? ""
 
+const hours = (minutes: number) => Math.round((minutes / 60) * 100) / 100
+
 const BUILDERS: Record<string, Builder> = {
+  attendance: {
+    roles: ["ADMIN", "MANAGER"],
+    async build(orgId, params, t) {
+      const range = resolveRange(params)
+      const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId } })
+      const schedule = scheduleOf(org)
+      const now = new Date()
+      const records = await prisma.attendance.findMany({
+        where: { organizationId: orgId, date: { gte: range.from, lte: range.to } },
+        include: { user: { select: { name: true, email: true } }, editedBy: { select: { name: true, email: true } } },
+        orderBy: [{ date: "asc" }, { checkIn: "asc" }],
+        take: MAX_ROWS,
+      })
+      const A = t.attendance
+      return {
+        name: t.exports.sheetAttendance,
+        columns: [
+          { header: A.date, key: "date", width: 12 },
+          { header: A.colEmployee, key: "employee", width: 28 },
+          { header: A.colStatus, key: "status", width: 16 },
+          { header: A.colIn, key: "in", width: 8 },
+          { header: A.colOut, key: "out", width: 8 },
+          { header: `${A.colWorked} (${A.colHours.toLowerCase()})`, key: "worked", kind: "number" },
+          { header: `${A.colLate} (min)`, key: "late", kind: "number" },
+          { header: `${A.colEarly} (min)`, key: "early", kind: "number" },
+          { header: `${A.colDistance} (m)`, key: "distance", kind: "number" },
+          { header: A.colSource, key: "source", width: 22 },
+          { header: t.common.note, key: "note", width: 30 },
+        ],
+        rows: records.map(r => {
+          const e = evaluateDay(toDayRecord(r), schedule, now)
+          return {
+            date: r.date,
+            employee: who(r.user),
+            status: e.missingCheckout ? `${A.status[r.status]} · ${A.board.missingCheckout}` : A.status[r.status],
+            in: r.checkIn ? tashkentTimeKey(r.checkIn) : "",
+            out: r.checkOut ? tashkentTimeKey(r.checkOut) : "",
+            worked: r.checkIn ? hours(e.workedMinutes) : "",
+            late: e.lateMinutes || "",
+            early: e.earlyLeaveMinutes || "",
+            distance: r.checkInDistanceM ?? "",
+            source: r.source === "SELF" ? A.sourceSelf : `${A.sourceManager}${r.editedBy ? `: ${who(r.editedBy)}` : ""}`,
+            note: r.note ?? "",
+          }
+        }),
+      }
+    },
+  },
+
+  timesheet: {
+    roles: ["ADMIN", "MANAGER"],
+    async build(orgId, params, t) {
+      const range = resolveRange(params)
+      const rows = await buildTimesheet(orgId, range)
+      const A = t.attendance
+      return {
+        name: `${t.exports.sheetTimesheet} ${range.from} — ${range.to}`,
+        columns: [
+          { header: A.colEmployee, key: "employee", width: 28 },
+          { header: A.colWorkingDays, key: "workingDays", kind: "number" },
+          { header: A.colPresent, key: "present", kind: "number" },
+          { header: A.colAbsent, key: "absent", kind: "number" },
+          { header: A.colLateCount, key: "lateCount", kind: "number" },
+          { header: `${A.colLate} (min)`, key: "lateMinutes", kind: "number" },
+          { header: A.colEarly, key: "earlyCount", kind: "number" },
+          { header: A.colHours, key: "hours", kind: "number" },
+          { header: A.colOvertime, key: "overtime", kind: "number" },
+          { header: A.status.SICK, key: "sick", kind: "number" },
+          { header: A.status.VACATION, key: "vacation", kind: "number" },
+          { header: A.status.EXCUSED, key: "excused", kind: "number" },
+          { header: A.colMissing, key: "missing", kind: "number" },
+          { header: A.colPieces, key: "pieces", kind: "number" },
+          { header: A.colPerHour, key: "perHour", kind: "number" },
+        ],
+        rows: rows.map(r => ({
+          employee: r.name,
+          workingDays: r.summary.workingDays,
+          present: r.summary.presentDays,
+          absent: r.summary.absentDays,
+          lateCount: r.summary.lateCount,
+          lateMinutes: r.summary.lateMinutes,
+          earlyCount: r.summary.earlyLeaveCount,
+          hours: hours(r.summary.workedMinutes),
+          overtime: hours(r.summary.overtimeMinutes),
+          sick: r.summary.sickDays,
+          vacation: r.summary.vacationDays,
+          excused: r.summary.excusedDays,
+          missing: r.summary.missingCheckouts,
+          pieces: r.pieces,
+          perHour: r.piecesPerHour ?? "",
+        })),
+      }
+    },
+  },
+
   sales: {
     roles: ["ADMIN", "MANAGER"],
     async build(orgId, range, t) {
