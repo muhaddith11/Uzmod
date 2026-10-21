@@ -9,6 +9,8 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    // Migratsiyalar pooler orqali emas, to'g'ridan-to'g'ri ulanishni talab qiladi.
+    // Vercel'da Neon ikkalasini beradi; lokal PGlite'da faqat DATABASE_URL bor.
+    url: process.env["DATABASE_URL_UNPOOLED"] ?? process.env["DATABASE_URL"],
   },
 });
