@@ -45,6 +45,37 @@ export function escapeHtml(text: string): string {
     .replace(/"/g, '&quot;')
 }
 
+let cachedBotUsername: string | null = null
+
+/**
+ * Bot username'i (t.me havolalari uchun). TELEGRAM_BOT_USERNAME berilmasa,
+ * Telegram'ning getMe metodidan bir marta olinadi va xotirada saqlanadi.
+ */
+export async function getBotUsername(): Promise<string | null> {
+  const fromEnv = process.env.TELEGRAM_BOT_USERNAME
+  if (fromEnv) return fromEnv.replace(/^@/, '');
+  if (cachedBotUsername) return cachedBotUsername;
+
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token || token === 'YOUR_BOT_TOKEN_HERE') return null;
+
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/getMe`, {
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!res.ok) {
+      console.error(`[Telegram] getMe bajarilmadi. Status: ${res.status}`);
+      return null;
+    }
+    const data = await res.json();
+    cachedBotUsername = data?.result?.username ?? null;
+    return cachedBotUsername;
+  } catch (err: any) {
+    console.error(`[Telegram] Ulanish xatosi: ${err.name}`);
+    return null;
+  }
+}
+
 export async function sendTelegramMessage(chatId: string, text: string, replyMarkup?: any): Promise<boolean> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token || token === 'YOUR_BOT_TOKEN_HERE') return false;

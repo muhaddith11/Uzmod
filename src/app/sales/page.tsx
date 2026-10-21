@@ -78,7 +78,7 @@ export default async function SalesPage() {
               </div>
 
               <div className="space-y-2 text-black">
-                <label className="text-sm font-bold text-gray-700">Mijoz (Nasiya uchun majburiy)</label>
+                <label className="text-sm font-bold text-gray-700">Mijoz (nasiya yoki qisman to'lovda majburiy)</label>
                 <select name="customerId" className="w-full p-3 border rounded-xl bg-gray-50">
                   <option value="">Doimiy mijozni tanlang...</option>
                   {customers.map(c => <option key={c.id} value={c.id}>{c.name} ({c.phone})</option>)}

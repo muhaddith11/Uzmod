@@ -34,6 +34,9 @@ model User {
   name           String?
   passwordHash   String
   telegramId     String?      @unique
+  // Profil sahifasidan bot orqali ulash uchun bir martalik token (t.me/<bot>?start=<token>)
+  telegramLinkToken          String?   @unique
+  telegramLinkTokenExpiresAt DateTime?
   role           Role         @default(WORKER)
 
   organizationId String
@@ -79,10 +82,10 @@ model Product {
   // Rulon (bobina) bilan hisoblanadimi? Faqat xomashyo uchun ma'noga ega.
   // Yoqilsa, ishlab chiqarishda ishchi aniq rulonni tanlashi shart bo'ladi.
   isRollTracked  Boolean      @default(false)
-  price          Decimal      @default(0) @db.Decimal(10, 2)
-  costPrice      Decimal      @default(0) @db.Decimal(10, 2)
-  productionWage Decimal      @default(0) @db.Decimal(10, 2)
-  minStockLevel  Decimal      @default(0) @db.Decimal(10, 2)
+  price          Decimal      @default(0) @db.Decimal(15, 2)
+  costPrice      Decimal      @default(0) @db.Decimal(15, 2)
+  productionWage Decimal      @default(0) @db.Decimal(15, 2)
+  minStockLevel  Decimal      @default(0) @db.Decimal(15, 2)
 
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -194,7 +197,7 @@ model Customer {
   id             String       @id @default(cuid())
   name           String
   phone          String?
-  debt           Decimal      @default(0) @db.Decimal(10, 2)
+  debt           Decimal      @default(0) @db.Decimal(15, 2)
 
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -209,7 +212,7 @@ model Customer {
 // 9b. Qarz to'lovlari — mijoz qarzini yopgani auditi
 model DebtPayment {
   id             String       @id @default(cuid())
-  amount         Decimal      @db.Decimal(10, 2)
+  amount         Decimal      @db.Decimal(15, 2)
   note           String?
 
   customerId     String
@@ -227,8 +230,8 @@ model DebtPayment {
 // 10. Sotuvlar (Point 5 uchun)
 model Sale {
   id              String       @id @default(cuid())
-  totalAmount     Decimal      @db.Decimal(10, 2)
-  paidAmount      Decimal      @db.Decimal(10, 2)
+  totalAmount     Decimal      @db.Decimal(15, 2)
+  paidAmount      Decimal      @db.Decimal(15, 2)
   paymentType     PaymentType  @default(CASH)
 
   customerId      String?
@@ -253,8 +256,8 @@ model SaleItem {
   product        Product  @relation(fields: [productId], references: [id])
   
   quantity       Float
-  price          Decimal  @db.Decimal(10, 2) // Sotilgan narxi
-  costPrice      Decimal  @db.Decimal(10, 2) // O'sha vaqtdagi tannarxi
+  price          Decimal  @db.Decimal(15, 2) // Sotilgan narxi
+  costPrice      Decimal  @db.Decimal(15, 2) // O'sha vaqtdagi tannarxi
 }
 
 enum PaymentType {
@@ -266,7 +269,7 @@ enum PaymentType {
 // 11. Xarajatlar (Point 2 uchun)
 model Expense {
   id              String       @id @default(cuid())
-  amount          Decimal      @db.Decimal(10, 2)
+  amount          Decimal      @db.Decimal(15, 2)
   category        String
   note            String?
 
@@ -280,7 +283,7 @@ model Expense {
 // 12. Xodimlar Bonus/Jarima (Point 3 uchun)
 model StaffAdjustment {
   id              String         @id @default(cuid())
-  amount          Decimal        @db.Decimal(10, 2)
+  amount          Decimal        @db.Decimal(15, 2)
   type            AdjustmentType
   note            String?
 

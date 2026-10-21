@@ -153,7 +153,7 @@ export default function TMAPage() {
           ID: {user?.telegramId}
         </div>
         <p className="text-xs text-gray-400">
-          Profil sahifasida shu ID-ni ulang, so'ng qayta kiring.
+          Saytdagi Profil sahifasida «Telegram'ni ulash» tugmasini bosing, so'ng ilovani qayta oching.
         </p>
       </div>
     )

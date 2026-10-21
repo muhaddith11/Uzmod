@@ -1,9 +1,8 @@
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
-import { linkTelegram } from "@/lib/actions/profile"
+import { startTelegramLink } from "@/lib/actions/profile"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { UserIcon, SendIcon, CheckCircle2Icon } from "lucide-react"
 
 export default async function ProfilePage() {
@@ -65,18 +64,20 @@ export default async function ProfilePage() {
                   <p className="text-sm text-gray-500">ID: {user.telegramId}</p>
                 </div>
                 <p className="text-center text-xs text-gray-400 italic">Endi Telegram bot orqali tizimga kira olasiz.</p>
+                <form action={startTelegramLink}>
+                  <Button type="submit" variant="outline" className="h-9 text-xs">
+                    Boshqa Telegram hisobiga ulash
+                  </Button>
+                </form>
               </div>
             ) : (
-              <form action={async (formData) => { 'use server'; await linkTelegram(formData.get("telegramId") as string) }} className="space-y-4">
+              <form action={startTelegramLink} className="space-y-4">
                 <div className="p-4 bg-orange-50 border border-orange-100 rounded-xl text-sm text-orange-700">
-                  Telegram botimizga <b>/start</b> deb yozing va u sizga beradigan ID-ni pastga kiriting.
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-gray-700">Telegram ID</label>
-                  <Input name="telegramId" placeholder="Masalan: 12345678" required className="h-12 text-lg" />
+                  Tugmani bosing — Telegram'da botimiz ochiladi. U yerda <b>Start</b> ni bosing,
+                  hisobingiz avtomatik ulanadi. Havola 15 daqiqa amal qiladi. So'ng bu sahifani yangilang.
                 </div>
                 <Button type="submit" className="w-full bg-blue-600 h-12 font-bold transition-all hover:bg-blue-700">
-                  Bog'lash
+                  Telegram'ni ulash
                 </Button>
               </form>
             )}

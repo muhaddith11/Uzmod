@@ -3,6 +3,9 @@
 import { prisma } from "@/lib/prisma"
 import { getOrgId, requireRole } from "@/lib/session"
 import { revalidatePath } from "next/cache"
+import type { PaymentType } from "@prisma/client"
+
+const PAYMENT_TYPES: PaymentType[] = ['CASH', 'CARD', 'DEBT']
 
 export async function createSale(formData: FormData) {
   const { organizationId: orgId } = await requireRole('ADMIN', 'MANAGER')
@@ -11,7 +14,7 @@ export async function createSale(formData: FormData) {
   const quantity = parseFloat(formData.get("quantity") as string)
   const totalAmount = parseFloat(formData.get("totalAmount") as string)
   const paidAmount = parseFloat(formData.get("paidAmount") as string)
-  const paymentType = formData.get("paymentType") as any // CASH, CARD, DEBT
+  const paymentType = formData.get("paymentType") as PaymentType
   const customerId = formData.get("customerId") as string
 
   if (!productId || !warehouseId || !totalAmount) {
@@ -34,8 +37,18 @@ export async function createSale(formData: FormData) {
     throw new Error("To'langan summa jami summadan katta bo'lishi mumkin emas")
   }
 
+  if (!PAYMENT_TYPES.includes(paymentType)) {
+    throw new Error("Noto'g'ri to'lov turi")
+  }
+
   if (paymentType === 'DEBT' && !customerId) {
      throw new Error("Nasiya uchun mijozni tanlash majburiy")
+  }
+
+  // To'lanmagan qoldiq mijoz qarziga yoziladi. Mijozsiz bu pul hech qayerda
+  // qolmasdi, hisobotda esa to'liq summa daromad bo'lib ko'rinardi.
+  if (paidAmount < totalAmount && !customerId) {
+    throw new Error("Summa to'liq to'lanmadi: qolgan qismi qarzga yozilishi uchun mijozni tanlang")
   }
 
   await prisma.$transaction(async (tx) => {

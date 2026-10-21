@@ -1,14 +1,20 @@
-import { getWorkers, addAdjustment, deleteAdjustment } from "@/lib/actions/workers"
+import { getWorkers, getStaff, addAdjustment, deleteAdjustment } from "@/lib/actions/workers"
+import { getSessionUser } from "@/lib/session"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { DeleteButton } from "@/components/ui/delete-button"
-import { UserIcon, BanknoteIcon, TrendingUpIcon, TrendingDownIcon, PlusIcon } from "lucide-react"
+import { EmployeeForm } from "@/components/workers/EmployeeForm"
+import { UserIcon, BanknoteIcon, TrendingUpIcon, TrendingDownIcon, PlusIcon, UserPlusIcon } from "lucide-react"
+
+const ROLE_LABELS: Record<string, string> = { ADMIN: 'Admin', MANAGER: 'Menejer', WORKER: 'Ishchi' }
 
 export default async function WorkersPage() {
+  const me = await getSessionUser()
   const workers = await getWorkers()
+  const staff = await getStaff()
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
@@ -21,8 +27,39 @@ export default async function WorkersPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        <div className="lg:col-span-1 space-y-8">
+        {/* Yangi xodim */}
+        <Card className="shadow-sm border-none bg-white">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <UserPlusIcon className="w-5 h-5 text-indigo-600" />
+              Yangi xodim
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <EmployeeForm canAddManager={me.role === 'ADMIN'} />
+            <div className="space-y-2 border-t border-gray-100 pt-4">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Jamoa ({staff.length})</p>
+              {staff.map(s => (
+                <div key={s.id} className="flex justify-between items-center gap-2 text-sm">
+                  <div className="flex flex-col min-w-0">
+                    <span className="font-medium text-gray-800 truncate">{s.name ?? s.email}</span>
+                    <span className="text-[10px] text-gray-400 truncate">{s.email}</span>
+                  </div>
+                  <div className="flex flex-col items-end shrink-0">
+                    <Badge variant="outline">{ROLE_LABELS[s.role] ?? s.role}</Badge>
+                    <span className={`text-[10px] ${s.telegramId ? "text-green-600" : "text-gray-400"}`}>
+                      {s.telegramId ? "Telegram ulangan" : "Telegram yo'q"}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Bonus/Jarima formasi */}
-        <Card className="lg:col-span-1 shadow-sm border-none bg-white">
+        <Card className="shadow-sm border-none bg-white">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <PlusIcon className="w-5 h-5 text-indigo-600" />
@@ -59,6 +96,7 @@ export default async function WorkersPage() {
             </form>
           </CardContent>
         </Card>
+        </div>
 
         {/* Xodimlar ro'yxati */}
         <div className="lg:col-span-3 space-y-6">
