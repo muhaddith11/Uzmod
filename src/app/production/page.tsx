@@ -1,97 +1,83 @@
 import { getProducts } from "@/lib/actions/products"
 import { getWarehouses } from "@/lib/actions/warehouses"
 import { getProductionLogs } from "@/lib/actions/production"
+import { getActiveWorkers } from "@/lib/actions/workers"
+import { getSessionUser, isManagement } from "@/lib/session"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { getWorkers } from "@/lib/actions/workers"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ProductionForm } from "@/components/production/ProductionForm"
+import { PageHeader, pageClass } from "@/components/PageHeader"
+import { getLocale, getT } from "@/i18n/server"
+import { formatDateTime, formatMoney, formatNumber } from "@/lib/format"
 import { HammerIcon, HistoryIcon, ArrowRightIcon } from "lucide-react"
 
 export default async function ProductionPage() {
-  const products = await getProducts()
-  const warehouses = await getWarehouses()
-  const workers = await getWorkers()
-  const logs = await getProductionLogs()
-
+  const me = await getSessionUser()
+  const manager = isManagement(me.role)
+  const [t, locale, products, warehouses, workers, logs] = await Promise.all([
+    getT(), getLocale(), getProducts(), getWarehouses(), manager ? getActiveWorkers() : Promise.resolve([]), getProductionLogs(),
+  ])
+  const P = t.production
   const finishedGoods = products.filter(p => !p.isRawMaterial)
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-12">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2 text-gray-900">
-          <HammerIcon className="w-8 h-8 text-purple-600" />
-          Ishlab chiqarish Moduli
-        </h1>
-        <p className="text-gray-500">Tayyor mahsulot ishlab chiqarish va avtomatik xomashyo sarfi</p>
-      </div>
+    <div className={pageClass}>
+      <PageHeader icon={<HammerIcon className="text-purple-600" />} title={P.title} subtitle={P.subtitle} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Form */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
         <Card className="lg:col-span-1 shadow-md border-none bg-white">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <ArrowRightIcon className="w-5 h-5 text-purple-600" />
-              Yangi Buyruq
+              {P.newOrder}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <ProductionForm
-              finishedGoods={finishedGoods.map(p => ({ id: p.id, name: p.name }))}
+              finishedGoods={finishedGoods.map(p => ({ id: p.id, name: p.name, unit: p.unit }))}
               warehouses={warehouses.map(w => ({ id: w.id, name: w.name }))}
-              workers={workers.map(w => ({ id: w.id, name: w.name ?? "Nomsiz" }))}
+              workers={workers.map(w => ({ id: w.id, name: w.name ?? w.email }))}
+              chooseWorker={manager}
             />
           </CardContent>
         </Card>
 
-        {/* Tarix */}
-        <Card className="lg:col-span-2 shadow-sm border-none bg-white">
-          <CardHeader className="border-b border-gray-50 pb-6">
-            <CardTitle className="flex items-center gap-2">
-              <HistoryIcon className="w-5 h-5 text-gray-400" />
-              Oxirgi ishlab chiqarishlar
+        <Card className="lg:col-span-2 shadow-sm border-none bg-white overflow-hidden min-w-0">
+          <CardHeader className="border-b border-gray-50">
+            <CardTitle className="flex items-center gap-2 text-gray-700">
+              <HistoryIcon className="w-5 h-5" />
+              {P.historyTitle}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
               <TableHeader>
-                <TableRow className="bg-gray-50 border-none">
-                  <TableHead className="py-4 px-6 font-bold text-gray-600">Sana</TableHead>
-                  <TableHead className="py-4 px-6 font-bold text-gray-600">Mahsulot</TableHead>
-                  <TableHead className="py-4 px-6 font-bold text-gray-600">Miqdor</TableHead>
-                  <TableHead className="py-4 px-6 font-bold text-gray-600">Ombor</TableHead>
-                  <TableHead className="py-4 px-6 font-bold text-gray-600">Ishchi</TableHead>
-                  <TableHead className="py-4 px-6 font-bold text-gray-600">Izoh</TableHead>
+                <TableRow className="bg-gray-50/50">
+                  <TableHead className="px-4 font-bold">{t.common.date}</TableHead>
+                  <TableHead className="px-4 font-bold">{t.common.product}</TableHead>
+                  <TableHead className="px-4 font-bold">{P.colQty}</TableHead>
+                  <TableHead className="px-4 font-bold">{P.colWorker}</TableHead>
+                  <TableHead className="px-4 font-bold">{t.common.warehouse}</TableHead>
+                  {manager && <TableHead className="px-4 font-bold">{P.colCost}</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {logs.map((log) => (
-                  <tr key={log.id} className="hover:bg-gray-50/50 border-b border-gray-50">
-                    <td className="py-4 px-6 text-sm text-gray-500 font-medium">
-                      {new Date(log.createdAt).toLocaleString('uz-UZ', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                    </td>
-                    <td className="py-4 px-6 font-bold text-gray-900">{log.product.name}</td>
-                    <td className="py-4 px-6 text-purple-600 font-extrabold">+{log.quantity} dona</td>
-                     <td className="py-4 px-6">
-                        <span className="text-xs bg-gray-100 px-2 py-1 rounded-full text-gray-600 font-bold text-nowrap">
-                          {log.toWarehouse?.name}
-                        </span>
-                     </td>
-                     <td className="py-4 px-6">
-                        <span className="text-xs bg-indigo-50 px-2 py-1 rounded-full text-indigo-700 font-bold">
-                          {(log as any).worker?.name || "—"}
-                        </span>
-                     </td>
-                     <td className="py-4 px-6 text-sm text-gray-500 italic">
-                       {log.note}
-                     </td>
-                  </tr>
+                {logs.map(log => (
+                  <TableRow key={log.id}>
+                    <TableCell className="px-4 text-xs text-gray-500 whitespace-nowrap">{formatDateTime(log.createdAt, locale)}</TableCell>
+                    <TableCell className="px-4 font-bold text-gray-900">{log.productName}</TableCell>
+                    <TableCell className="px-4 font-bold text-purple-700 whitespace-nowrap">+{formatNumber(log.quantity, locale)} {log.unit}</TableCell>
+                    <TableCell className="px-4 text-gray-600">{log.workerName ?? t.common.none}</TableCell>
+                    <TableCell className="px-4 text-gray-500">{log.warehouseName ?? t.common.none}</TableCell>
+                    {manager && (
+                      <TableCell className="px-4 text-gray-500 whitespace-nowrap">{log.unitCost === null ? t.common.none : formatMoney(log.unitCost, locale)}</TableCell>
+                    )}
+                  </TableRow>
                 ))}
                 {logs.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="h-48 text-center text-gray-400 italic">
-                      Hali hech narsa ishlab chiqarilmadi
-                    </td>
-                  </tr>
+                  <TableRow>
+                    <TableCell colSpan={manager ? 6 : 5} className="h-32 text-center text-gray-400 italic">{P.noHistory}</TableCell>
+                  </TableRow>
                 )}
               </TableBody>
             </Table>

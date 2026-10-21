@@ -1,4 +1,5 @@
 import { unstable_rethrow } from "next/navigation"
+import { getT } from "@/i18n/server"
 
 /**
  * Foydalanuvchiga ko'rsatiladigan xato (validatsiya, ruxsat va h.k.).
@@ -25,13 +26,14 @@ export function action<Args extends unknown[]>(fn: (...args: Args) => Promise<un
 
       if (err instanceof ActionError) return { error: err.message }
 
+      const t = await getT()
       // SERIALIZABLE tranzaksiyalar bir vaqtda to'qnashdi
-      if ((err as { code?: string })?.code === 'P2034') {
-        return { error: "Bir vaqtda boshqa amal bajarildi. Qayta urinib ko'ring." }
+      if ((err as { code?: string })?.code === "P2034") {
+        return { error: t.errors.conflict }
       }
 
       console.error("ACTION_ERROR:", err)
-      return { error: "Xatolik yuz berdi. Qayta urinib ko'ring." }
+      return { error: t.errors.generic }
     }
   }
 }

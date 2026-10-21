@@ -8,7 +8,9 @@ export const prisma =
   globalForPrisma.prisma ||
   (() => {
     const connectionString = `${process.env.DATABASE_URL}`
-    const pool = new Pool({ connectionString })
+    // Testlarda (PGlite) bitta ulanish: u bitta sessiyali, parallel ulanishlar aralashib ketadi
+    const max = Number(process.env.DATABASE_POOL_MAX) || undefined
+    const pool = new Pool({ connectionString, max })
     const adapter = new PrismaPg(pool)
     return new PrismaClient({
       adapter,

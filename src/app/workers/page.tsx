@@ -1,218 +1,295 @@
-import { getWorkers, getStaff, createEmployee, addAdjustment, deleteAdjustment } from "@/lib/actions/workers"
-import { ActionForm } from "@/components/ui/action-form"
+import {
+  getWorkerEarnings, getStaff, createEmployee, addAdjustment, deleteAdjustment,
+  setEmployeeActive, resetEmployeePassword, changeEmployeeRole,
+} from "@/lib/actions/workers"
 import { getSessionUser } from "@/lib/session"
+import { ActionForm } from "@/components/ui/action-form"
+import { ActionButton } from "@/components/ui/action-button"
+import { FormDialog } from "@/components/ui/form-dialog"
+import { Field, NativeSelect, inputClass } from "@/components/ui/field"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { DeleteButton } from "@/components/ui/delete-button"
-import { UserIcon, BanknoteIcon, TrendingUpIcon, TrendingDownIcon, PlusIcon, UserPlusIcon } from "lucide-react"
+import { PageHeader, pageClass } from "@/components/PageHeader"
+import { DateRangeFilter } from "@/components/DateRangeFilter"
+import { ExportButton } from "@/components/ExportButton"
+import { getLocale, getT } from "@/i18n/server"
+import { formatDate, formatMoney, formatNumber } from "@/lib/format"
+import { tashkentDateKey } from "@/lib/tz"
+import { UserIcon, BanknoteIcon, TrendingUpIcon, PlusIcon, UserPlusIcon, KeyRoundIcon, BanIcon, CheckCircleIcon, ShieldIcon } from "lucide-react"
 
-const ROLE_LABELS: Record<string, string> = { ADMIN: 'Admin', MANAGER: 'Menejer', WORKER: 'Ishchi' }
-
-export default async function WorkersPage() {
+export default async function WorkersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string }>
+}) {
   const me = await getSessionUser()
-  const workers = await getWorkers()
-  const staff = await getStaff()
+  const params = await searchParams
+  // Sukut bo'yicha — shu oy (ish haqi odatda oylik hisoblanadi)
+  const today = tashkentDateKey(new Date())
+  const hasRange = params.from !== undefined || params.to !== undefined
+  const range = hasRange ? params : { from: `${today.slice(0, 8)}01`, to: today }
+
+  const [t, locale, staff, workers] = await Promise.all([getT(), getLocale(), getStaff(), getWorkerEarnings(range)])
+  const W = t.workers
+  const activeWorkers = workers.filter(w => w.isActive)
+
+  const canManage = (target: { id: string; role: string }) =>
+    target.id !== me.id && (me.role === 'ADMIN' || target.role === 'WORKER')
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2 text-gray-900">
-          <UserIcon className="w-8 h-8 text-indigo-600" />
-          Xodimlar va Ishbay haq
-        </h1>
-        <p className="text-gray-500">Tikuvchilarning bajargan ishlari va balansini boshqarish</p>
-      </div>
+    <div className={pageClass}>
+      <PageHeader icon={<UserIcon className="text-indigo-600" />} title={W.title} subtitle={W.subtitle}>
+        <ExportButton kind="workers" from={range.from} to={range.to} />
+      </PageHeader>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
         <div className="lg:col-span-1 space-y-8">
-        {/* Yangi xodim */}
-        <Card className="shadow-sm border-none bg-white">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <UserPlusIcon className="w-5 h-5 text-indigo-600" />
-              Yangi xodim
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <ActionForm
-              action={createEmployee}
-              successMessage="Xodim qo'shildi. Endi u email va parol bilan kira oladi."
-              className="space-y-4"
-            >
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700">Ism-sharif</label>
-                <Input name="name" placeholder="Masalan: Anvar Tikuvchi" required className="bg-gray-50 h-11" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700">Email (login)</label>
-                <Input name="email" type="email" placeholder="ishchi@example.com" required className="bg-gray-50 h-11" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700">Parol</label>
-                <Input name="password" type="text" minLength={6} placeholder="Kamida 6 ta belgi" required className="bg-gray-50 h-11" />
-              </div>
-              <div className="space-y-2 text-black">
-                <label className="text-sm font-bold text-gray-700">Lavozim</label>
-                <select name="role" required className="w-full p-3 border rounded-xl bg-gray-50">
-                  <option value="WORKER">Ishchi (Tikuvchi)</option>
-                  {me.role === 'ADMIN' && <option value="MANAGER">Menejer</option>}
-                </select>
-              </div>
-              <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 font-bold h-11">
-                Xodim qo'shish
-              </Button>
-            </ActionForm>
-            <div className="space-y-2 border-t border-gray-100 pt-4">
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Jamoa ({staff.length})</p>
-              {staff.map(s => (
-                <div key={s.id} className="flex justify-between items-center gap-2 text-sm">
-                  <div className="flex flex-col min-w-0">
-                    <span className="font-medium text-gray-800 truncate">{s.name ?? s.email}</span>
-                    <span className="text-[10px] text-gray-400 truncate">{s.email}</span>
-                  </div>
-                  <div className="flex flex-col items-end shrink-0">
-                    <Badge variant="outline">{ROLE_LABELS[s.role] ?? s.role}</Badge>
-                    <span className={`text-[10px] ${s.telegramId ? "text-green-600" : "text-gray-400"}`}>
-                      {s.telegramId ? "Telegram ulangan" : "Telegram yo'q"}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+          <Card className="shadow-sm border-none bg-white">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <UserPlusIcon className="w-5 h-5 text-indigo-600" />
+                {W.newEmployee}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ActionForm action={createEmployee} successMessage={W.employeeAdded} className="space-y-4">
+                <Field label={W.fullName}>
+                  <Input name="name" placeholder={W.fullNamePlaceholder} required className={inputClass} />
+                </Field>
+                <Field label={W.loginEmail}>
+                  <Input name="email" type="email" placeholder="ishchi@example.com" required className={inputClass} />
+                </Field>
+                <Field label={W.password}>
+                  <Input name="password" type="text" minLength={8} placeholder={W.passwordPlaceholder} required className={inputClass} autoComplete="off" />
+                </Field>
+                <Field label={W.role}>
+                  <NativeSelect name="role" required>
+                    <option value="WORKER">{W.roleWorker}</option>
+                    {me.role === 'ADMIN' && <option value="MANAGER">{W.roleManager}</option>}
+                  </NativeSelect>
+                </Field>
+                <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 font-bold h-11">{W.addEmployee}</Button>
+              </ActionForm>
+            </CardContent>
+          </Card>
 
-        {/* Bonus/Jarima formasi */}
-        <Card className="shadow-sm border-none bg-white">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <PlusIcon className="w-5 h-5 text-indigo-600" />
-              Bonus yoki Jarima
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ActionForm action={addAdjustment} className="space-y-4">
-              <div className="space-y-2 text-black">
-                <label className="text-sm font-bold text-gray-700">Xodim</label>
-                <select name="userId" required className="w-full p-3 border rounded-xl bg-gray-50">
-                   <option value="">Xodimni tanlang...</option>
-                   {workers.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700">Summa</label>
-                <Input name="amount" type="number" placeholder="50000" required className="bg-gray-50 h-11" />
-              </div>
-              <div className="space-y-2 text-black">
-                <label className="text-sm font-bold text-gray-700">Turi</label>
-                <select name="type" required className="w-full p-3 border rounded-xl bg-gray-50">
-                  <option value="BONUS">Bonus (Mukofot)</option>
-                  <option value="PENALTY">Jarima (Chiqim)</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700">Izoh</label>
-                <Input name="note" placeholder="Sababi..." className="bg-gray-50 h-11" />
-              </div>
-              <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 font-bold h-11">
-                Tasdiqlash
-              </Button>
-            </ActionForm>
-          </CardContent>
-        </Card>
+          <Card className="shadow-sm border-none bg-white">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <PlusIcon className="w-5 h-5 text-indigo-600" />
+                {W.adjustmentTitle}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ActionForm action={addAdjustment} successMessage={W.adjustmentSaved} className="space-y-4">
+                <Field label={W.employee}>
+                  <NativeSelect name="userId" required defaultValue="">
+                    <option value="" disabled>{W.selectEmployee}</option>
+                    {activeWorkers.map(w => <option key={w.id} value={w.id}>{w.name ?? w.email}</option>)}
+                  </NativeSelect>
+                </Field>
+                <Field label={`${W.amount} (${t.common.currency})`}>
+                  <Input name="amount" type="number" min="0" step="1" placeholder="50000" required className={inputClass} />
+                </Field>
+                <Field label={W.adjustmentType}>
+                  <NativeSelect name="type" required>
+                    <option value="BONUS">{W.bonus}</option>
+                    <option value="PENALTY">{W.penalty}</option>
+                  </NativeSelect>
+                </Field>
+                <Field label={t.common.note}>
+                  <Input name="note" placeholder={W.reason} className={inputClass} />
+                </Field>
+                <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 font-bold h-11">{t.common.confirm}</Button>
+              </ActionForm>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Xodimlar ro'yxati */}
-        <div className="lg:col-span-3 space-y-6">
-           {workers.map((worker) => {
-              // Tikuvdan tushgan jami pul
-              const productionEarnings = (worker as any).movements?.reduce((acc: number, m: any) => {
-                 return acc + (m.quantity * Number(m.product.productionWage || 0))
-              }, 0) || 0
-
-              // Bonus/Jarimalar jami
-              const adjustmentTotal = (worker as any).adjustments?.reduce((acc: number, a: any) => acc + Number(a.amount), 0) || 0
-              
-              const totalBalance = productionEarnings + adjustmentTotal
-
-              return (
-                <Card key={worker.id} className="shadow-sm border-none bg-white overflow-hidden">
-                   <div className="p-6 bg-gray-50/50 border-b flex justify-between items-center">
-                      <div className="flex items-center gap-4">
-                         <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600">
-                            <UserIcon className="w-6 h-6" />
-                         </div>
-                         <div>
-                            <h3 className="text-xl font-black text-gray-900">{worker.name}</h3>
-                            <p className="text-xs text-gray-500 font-bold uppercase tracking-widest">{worker.email}</p>
-                         </div>
-                      </div>
-                      <div className="text-right">
-                         <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Jami hisob</p>
-                         <p className={`text-2xl font-black ${totalBalance >= 0 ? "text-green-600" : "text-red-600"}`}>
-                            {new Intl.NumberFormat('uz-UZ').format(totalBalance)} so'm
-                         </p>
-                      </div>
-                   </div>
-                   <CardContent className="p-0">
-                      <div className="grid grid-cols-1 md:grid-cols-2">
-                         {/* Ishlar tarixi */}
-                         <div className="p-6 border-r border-gray-100">
-                            <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                               <TrendingUpIcon className="w-4 h-4 text-green-500" /> Bajargan ishlari (Ishbay)
-                            </h4>
-                            <div className="space-y-3">
-                               {(worker as any).movements?.map((m: any) => (
-                                  <div key={m.id} className="flex justify-between items-center text-sm">
-                                     <span className="text-gray-600 font-medium">{m.product.name} ({m.quantity} dona)</span>
-                                     <span className="font-bold text-gray-900">
-                                        {new Intl.NumberFormat('uz-UZ').format(m.quantity * Number(m.product.productionWage))} s.
-                                     </span>
-                                  </div>
-                               ))}
-                               {(worker as any).movements?.length === 0 && (
-                                  <p className="text-xs text-gray-400 italic">Hali ish kiritilmagan</p>
-                               )}
+        <div className="lg:col-span-3 space-y-6 min-w-0">
+          <Card className="shadow-sm border-none bg-white overflow-hidden">
+            <CardHeader className="border-b border-gray-50">
+              <CardTitle className="text-lg">{W.team(staff.length)}</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-50/50">
+                    <TableHead className="px-4 font-bold">{W.employee}</TableHead>
+                    <TableHead className="px-4 font-bold">{W.role}</TableHead>
+                    <TableHead className="px-4 font-bold">{t.common.status}</TableHead>
+                    <TableHead className="px-4 font-bold text-right">{t.common.actions}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {staff.map(s => {
+                    const label = s.name ?? s.email
+                    return (
+                      <TableRow key={s.id} className={s.isActive ? "" : "bg-gray-50/80"}>
+                        <TableCell className="px-4">
+                          <div className="flex flex-col min-w-0">
+                            <span className="font-bold text-gray-900 truncate">
+                              {label}{s.id === me.id && <span className="text-xs text-gray-400 font-medium"> ({W.you})</span>}
+                            </span>
+                            <span className="text-xs text-gray-400 truncate">{s.email}</span>
+                            <span className={`text-[11px] ${s.telegramId ? "text-green-600" : "text-gray-400"}`}>
+                              {s.telegramId ? W.telegramLinked : W.telegramNotLinked}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="px-4">
+                          <Badge variant="outline">{t.common.roles[s.role]}</Badge>
+                        </TableCell>
+                        <TableCell className="px-4">
+                          <Badge variant="outline" className={s.isActive ? "bg-green-50 text-green-700 border-green-100" : "bg-gray-100 text-gray-500"}>
+                            {s.isActive ? t.common.active : t.common.blocked}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="px-4">
+                          {canManage(s) && (
+                            <div className="flex flex-wrap justify-end gap-1.5">
+                              {s.isActive ? (
+                                <ActionButton
+                                  action={setEmployeeActive.bind(null, s.id, false)}
+                                  confirmText={W.confirmBlock(label)}
+                                  className="text-rose-600 border-rose-100 hover:bg-rose-50 gap-1"
+                                >
+                                  <BanIcon className="w-3.5 h-3.5" /> {W.block}
+                                </ActionButton>
+                              ) : (
+                                <ActionButton
+                                  action={setEmployeeActive.bind(null, s.id, true)}
+                                  confirmText={W.confirmUnblock(label)}
+                                  className="text-green-700 border-green-100 hover:bg-green-50 gap-1"
+                                >
+                                  <CheckCircleIcon className="w-3.5 h-3.5" /> {W.unblock}
+                                </ActionButton>
+                              )}
+                              <FormDialog
+                                triggerClassName="gap-1"
+              trigger={<><KeyRoundIcon className="w-3.5 h-3.5" />{W.resetPassword}</>}
+                                title={`${W.resetPassword}: ${label}`}
+                                action={resetEmployeePassword}
+                                submitLabel={t.common.save}
+                              >
+                                <input type="hidden" name="userId" value={s.id} />
+                                <Field label={W.password} hint={t.validation.passwordMin(8)}>
+                                  <Input name="password" type="text" minLength={8} required className={inputClass} autoComplete="off" />
+                                </Field>
+                              </FormDialog>
+                              {me.role === 'ADMIN' && (
+                                <FormDialog
+                                  triggerClassName="gap-1"
+              trigger={<><ShieldIcon className="w-3.5 h-3.5" />{W.changeRole}</>}
+                                  title={`${W.changeRole}: ${label}`}
+                                  action={changeEmployeeRole}
+                                  submitLabel={t.common.save}
+                                >
+                                  <input type="hidden" name="userId" value={s.id} />
+                                  <Field label={W.role}>
+                                    <NativeSelect name="role" defaultValue={s.role}>
+                                      <option value="WORKER">{W.roleWorker}</option>
+                                      <option value="MANAGER">{W.roleManager}</option>
+                                      <option value="ADMIN">{W.roleAdmin}</option>
+                                    </NativeSelect>
+                                  </Field>
+                                </FormDialog>
+                              )}
                             </div>
-                         </div>
-                         {/* Bonuslar tarixi */}
-                         <div className="p-6">
-                            <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                               <BanknoteIcon className="w-4 h-4 text-blue-500" /> Qo'shimcha (Bonus/Jarima)
-                            </h4>
-                            <div className="space-y-3">
-                               {(worker as any).adjustments?.map((a: any) => (
-                                  <div key={a.id} className="flex justify-between items-center text-sm">
-                                     <div className="flex flex-col">
-                                        <span className="text-gray-600 font-medium">{a.note || a.type}</span>
-                                        <span className="text-[10px] text-gray-400">{new Date(a.createdAt).toLocaleDateString()}</span>
-                                     </div>
-                                     <div className="flex items-center gap-2">
-                                        <span className={`font-bold ${Number(a.amount) >= 0 ? "text-green-600" : "text-red-600"}`}>
-                                           {Number(a.amount) > 0 ? "+" : ""}{new Intl.NumberFormat('uz-UZ').format(Number(a.amount))} s.
-                                        </span>
-                                        <DeleteButton
-                                          action={async () => { 'use server'; return deleteAdjustment(a.id) }}
-                                          confirmText="Bu tartibni o'chirasizmi?"
-                                          className="h-6 w-6 text-gray-300 hover:text-red-500"
-                                          iconClassName="w-3 h-3"
-                                        />
-                                     </div>
-                                  </div>
-                               ))}
-                               {(worker as any).adjustments?.length === 0 && (
-                                  <p className="text-xs text-gray-400 italic">O'zgarishlar yo'q</p>
-                               )}
-                            </div>
-                         </div>
-                      </div>
-                   </CardContent>
-                </Card>
-              )
-           })}
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+
+          <div className="space-y-2">
+            <DateRangeFilter basePath="/workers" from={range.from} to={range.to} />
+            <p className="text-xs text-gray-500 px-1">{W.periodHint}</p>
+          </div>
+
+          {workers.length === 0 && (
+            <p className="text-center text-gray-400 italic py-10">{W.noWorkers}</p>
+          )}
+
+          {workers.map(worker => (
+            <Card key={worker.id} className={`shadow-sm border-none bg-white overflow-hidden ${worker.isActive ? "" : "opacity-70"}`}>
+              <div className="p-5 md:p-6 bg-gray-50/50 border-b flex flex-wrap justify-between items-center gap-4">
+                <div className="flex items-center gap-4 min-w-0">
+                  <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 shrink-0">
+                    <UserIcon className="w-6 h-6" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-xl font-black text-gray-900 truncate">{worker.name ?? worker.email}</h3>
+                    <p className="text-xs text-gray-500 font-bold truncate">{worker.email}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{W.balance}</p>
+                  <p className={`text-2xl font-black ${worker.balance >= 0 ? "text-green-600" : "text-red-600"}`}>
+                    {formatMoney(worker.balance, locale)}
+                  </p>
+                </div>
+              </div>
+              <CardContent className="p-0">
+                <div className="grid grid-cols-1 md:grid-cols-2">
+                  <div className="p-5 md:p-6 md:border-r border-gray-100">
+                    <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                      <TrendingUpIcon className="w-4 h-4 text-green-500" /> {W.pieceWork}
+                      <span className="ml-auto text-gray-700 normal-case tracking-normal">{formatMoney(worker.pieceTotal, locale)}</span>
+                    </h4>
+                    <div className="space-y-3 max-h-72 overflow-y-auto">
+                      {worker.work.map(m => (
+                        <div key={m.id} className="flex justify-between items-center gap-3 text-sm">
+                          <span className="text-gray-600 font-medium">
+                            {m.productName} ({W.pieces(formatNumber(m.quantity, locale), m.unit)})
+                            <span className="block text-[11px] text-gray-400">{formatDate(m.createdAt, locale)}</span>
+                          </span>
+                          <span className="font-bold text-gray-900 whitespace-nowrap">{formatMoney(m.earned, locale)}</span>
+                        </div>
+                      ))}
+                      {worker.work.length === 0 && <p className="text-xs text-gray-400 italic">{W.noWork}</p>}
+                    </div>
+                  </div>
+                  <div className="p-5 md:p-6 border-t md:border-t-0 border-gray-100">
+                    <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                      <BanknoteIcon className="w-4 h-4 text-blue-500" /> {W.extras}
+                      <span className="ml-auto text-gray-700 normal-case tracking-normal">{formatMoney(worker.adjustmentTotal, locale)}</span>
+                    </h4>
+                    <div className="space-y-3 max-h-72 overflow-y-auto">
+                      {worker.adjustments.map(a => (
+                        <div key={a.id} className="flex justify-between items-center gap-2 text-sm">
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-gray-600 font-medium truncate">{a.note || (a.type === 'BONUS' ? W.bonus : W.penalty)}</span>
+                            <span className="text-[11px] text-gray-400">{formatDate(a.createdAt, locale)}</span>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <span className={`font-bold ${a.amount >= 0 ? "text-green-600" : "text-red-600"}`}>
+                              {a.amount > 0 ? "+" : ""}{formatMoney(a.amount, locale)}
+                            </span>
+                            <DeleteButton
+                              action={deleteAdjustment.bind(null, a.id)}
+                              confirmText={W.confirmDeleteAdjustment}
+                              className="h-7 w-7 text-gray-300 hover:text-red-500"
+                              iconClassName="w-3.5 h-3.5"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                      {worker.adjustments.length === 0 && <p className="text-xs text-gray-400 italic">{W.noExtras}</p>}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       </div>
     </div>

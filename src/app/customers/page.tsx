@@ -1,163 +1,148 @@
-import { getCustomers, createCustomer, deleteCustomer, repayDebt } from "@/lib/actions/customers"
+import { getCustomers, createCustomer, deleteCustomer, repayDebt, getDebtPayments } from "@/lib/actions/customers"
 import { ActionForm } from "@/components/ui/action-form"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { FormDialog } from "@/components/ui/form-dialog"
+import { Field, inputClass } from "@/components/ui/field"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { DeleteButton } from "@/components/ui/delete-button"
-import { UsersIcon, PlusIcon, PhoneIcon, BanknoteIcon, HandCoinsIcon } from "lucide-react"
+import { PageHeader, pageClass } from "@/components/PageHeader"
+import { ExportButton } from "@/components/ExportButton"
+import { getLocale, getT } from "@/i18n/server"
+import { formatDateTime, formatMoney } from "@/lib/format"
+import { UsersIcon, UserPlusIcon, BanknoteIcon, HistoryIcon } from "lucide-react"
 
 export default async function CustomersPage() {
-  const customers = await getCustomers()
+  const [t, locale, customers, payments] = await Promise.all([getT(), getLocale(), getCustomers(), getDebtPayments(30)])
+  const C = t.customers
+  const totalDebt = customers.reduce((acc, c) => acc + Math.max(c.debt, 0), 0)
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2 text-gray-900">
-          <UsersIcon className="w-8 h-8 text-blue-600" />
-          Mijozlar va Nasiyalar
-        </h1>
-        <p className="text-gray-500">Doimiy mijozlar ro'yxati va ularning qarzdorlik hisobi</p>
-      </div>
+    <div className={pageClass}>
+      <PageHeader icon={<UsersIcon className="text-blue-600" />} title={C.title} subtitle={C.subtitle}>
+        <ExportButton kind="customers" />
+      </PageHeader>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        {/* Yangi mijoz */}
-        <Card className="lg:col-span-1 shadow-sm border-none bg-white h-fit">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <PlusIcon className="w-5 h-5 text-blue-600" />
-              Yangi mijoz
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ActionForm action={createCustomer} className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700">F.I.O</label>
-                <Input name="name" placeholder="Masalan: Aziz Rahimov" required className="bg-gray-50 border-gray-100 h-11" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700">Telefon</label>
-                <Input name="phone" placeholder="+998 90 123 45 67" className="bg-gray-50 border-gray-100 h-11" />
-              </div>
-              <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 font-bold h-11 text-white">
-                Mijozni qo'shish
-              </Button>
-            </ActionForm>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
+        <div className="lg:col-span-1 space-y-6">
+          <Card className="shadow-sm border-none bg-white">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <UserPlusIcon className="w-5 h-5 text-blue-600" />
+                {C.newCustomer}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ActionForm action={createCustomer} successMessage={C.added} className="space-y-4">
+                <Field label={C.name}>
+                  <Input name="name" placeholder={C.namePlaceholder} required className={inputClass} />
+                </Field>
+                <Field label={t.common.phone}>
+                  <Input name="phone" type="tel" placeholder={C.phonePlaceholder} className={inputClass} />
+                </Field>
+                <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 font-bold h-11">{t.common.add}</Button>
+              </ActionForm>
+            </CardContent>
+          </Card>
 
-        {/* Mijozlar ro'yxati */}
-        <Card className="lg:col-span-3 shadow-sm border-none bg-white overflow-hidden">
-          <CardHeader className="border-b border-gray-50">
-            <CardTitle className="text-lg flex items-center gap-2 font-bold text-gray-700">
-              Barcha mijozlar
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-gray-50/50 border-none hover:bg-gray-50/50">
-                  <TableHead className="py-4 px-6 font-bold text-gray-600">Mijoz ismi</TableHead>
-                  <TableHead className="py-4 px-6 font-bold text-gray-600">Telefon</TableHead>
-                  <TableHead className="py-4 px-6 font-bold text-gray-600 text-right">Mavjud qarz</TableHead>
-                  <TableHead className="py-4 px-6 text-right font-bold text-gray-600">Amallar</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {customers.map((c) => (
-                  <TableRow key={c.id} className="hover:bg-gray-50/50 border-b border-gray-100">
-                    <TableCell className="py-5 px-6 font-bold text-gray-900">
-                       {c.name}
-                    </TableCell>
-                    <TableCell className="py-5 px-6 text-gray-500 font-medium">
-                       <div className="flex items-center gap-1">
-                          <PhoneIcon className="w-3 h-3 text-gray-400" />
-                          {c.phone || "Kiritilmagan"}
-                       </div>
-                    </TableCell>
-                    <TableCell className="py-5 px-6 text-right font-black text-rose-600">
-                       <div className="flex items-center justify-end gap-1">
-                          <BanknoteIcon className="w-4 h-4 text-rose-400" />
-                          {new Intl.NumberFormat('uz-UZ').format(Number(c.debt))} so'm
-                       </div>
-                    </TableCell>
-                    <TableCell className="py-5 px-6 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {Number(c.debt) > 0 && (
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="font-bold border-emerald-200 text-emerald-700 hover:bg-emerald-50"
-                              >
-                                <HandCoinsIcon className="w-4 h-4 mr-1" />
-                                Qarzni to'lash
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent>
-                              <DialogHeader>
-                                <DialogTitle>{c.name} — qarz to'lovi</DialogTitle>
-                              </DialogHeader>
-                              <ActionForm action={repayDebt} className="space-y-4 pt-4">
-                                <input type="hidden" name="customerId" value={c.id} />
-                                <div className="rounded-xl bg-rose-50 p-4 text-sm">
-                                  <span className="text-gray-600">Mavjud qarz: </span>
-                                  <span className="font-black text-rose-600">
-                                    {new Intl.NumberFormat('uz-UZ').format(Number(c.debt))} so'm
-                                  </span>
-                                </div>
-                                <div className="space-y-2">
-                                  <label className="text-sm font-bold text-gray-700">To'lov summasi</label>
-                                  <Input
-                                    name="amount"
-                                    type="number"
-                                    step="0.01"
-                                    min="0.01"
-                                    max={Number(c.debt)}
-                                    required
-                                    placeholder="0.00"
-                                    className="bg-gray-50 border-gray-100 h-11"
-                                  />
-                                </div>
-                                <div className="space-y-2">
-                                  <label className="text-sm font-bold text-gray-700">Izoh (ixtiyoriy)</label>
-                                  <Input
-                                    name="note"
-                                    placeholder="Masalan: naqd pul olindi"
-                                    className="bg-gray-50 border-gray-100 h-11"
-                                  />
-                                </div>
-                                <Button
-                                  type="submit"
-                                  className="w-full bg-emerald-600 hover:bg-emerald-700 font-bold h-11 text-white"
-                                >
-                                  To'lovni tasdiqlash
-                                </Button>
-                              </ActionForm>
-                            </DialogContent>
-                          </Dialog>
+          <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5">
+            <p className="text-xs font-bold text-amber-700 uppercase tracking-widest">{C.totalDebt}</p>
+            <p className="text-2xl font-black text-amber-700">{formatMoney(totalDebt, locale)}</p>
+          </div>
+        </div>
+
+        <div className="lg:col-span-3 space-y-6 min-w-0">
+          <Card className="shadow-sm border-none bg-white overflow-hidden">
+            <CardHeader className="border-b border-gray-50">
+              <CardTitle className="text-lg text-gray-700">{C.list}</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-50/50">
+                    <TableHead className="px-4 font-bold">{t.common.customer}</TableHead>
+                    <TableHead className="px-4 font-bold">{t.common.phone}</TableHead>
+                    <TableHead className="px-4 font-bold">{C.debt}</TableHead>
+                    <TableHead className="px-4 font-bold text-right">{t.common.actions}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {customers.map(c => (
+                    <TableRow key={c.id}>
+                      <TableCell className="px-4 font-bold text-gray-900">{c.name}</TableCell>
+                      <TableCell className="px-4 text-gray-500">{c.phone ?? t.common.none}</TableCell>
+                      <TableCell className="px-4 whitespace-nowrap">
+                        {c.debt > 0 ? (
+                          <span className="font-black text-amber-700">{formatMoney(c.debt, locale)}</span>
+                        ) : c.debt < 0 ? (
+                          <span className="font-bold text-green-700">{C.advance}: {formatMoney(-c.debt, locale)}</span>
+                        ) : (
+                          <span className="text-gray-400">{C.noDebt}</span>
                         )}
-                        <DeleteButton
-                          action={async () => { 'use server'; return deleteCustomer(c.id) }}
-                          confirmText={`"${c.name}" mijozini o'chirasizmi?`}
-                        />
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {customers.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={4} className="h-48 text-center text-gray-400 italic">
-                      Mijozlar topilmadi
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                      </TableCell>
+                      <TableCell className="px-4">
+                        <div className="flex justify-end gap-1.5">
+                          {c.debt > 0 && (
+                            <FormDialog
+                              triggerClassName="gap-1 text-green-700 border-green-100 hover:bg-green-50"
+              trigger={<><BanknoteIcon className="w-3.5 h-3.5" />{C.repay}</>}
+                              title={C.repayTitle(c.name)}
+                              description={`${C.currentDebt}: ${formatMoney(c.debt, locale)}`}
+                              action={repayDebt}
+                              submitLabel={C.repaySubmit}
+                              submitClassName="bg-green-600 hover:bg-green-700 text-white"
+                            >
+                              <input type="hidden" name="customerId" value={c.id} />
+                              <Field label={`${C.repayAmount} (${t.common.currency})`}>
+                                <Input key={c.debt} name="amount" type="number" step="0.01" min="0" max={c.debt} defaultValue={c.debt} required className={inputClass} />
+                              </Field>
+                              <Field label={t.common.note}>
+                                <Input name="note" placeholder={t.common.notePlaceholder} className={inputClass} />
+                              </Field>
+                            </FormDialog>
+                          )}
+                          <DeleteButton action={deleteCustomer.bind(null, c.id)} confirmText={C.confirmDelete(c.name)} />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {customers.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="h-32 text-center text-gray-400 italic">{C.noCustomers}</TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-sm border-none bg-white overflow-hidden">
+            <CardHeader className="border-b border-gray-50">
+              <CardTitle className="text-lg text-gray-700 flex items-center gap-2"><HistoryIcon className="w-5 h-5" />{C.paymentsTitle}</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableBody>
+                  {payments.map(p => (
+                    <TableRow key={p.id}>
+                      <TableCell className="px-4 text-xs text-gray-500 whitespace-nowrap">{formatDateTime(p.createdAt, locale)}</TableCell>
+                      <TableCell className="px-4 font-bold">{p.customerName}</TableCell>
+                      <TableCell className="px-4 font-black text-green-700 whitespace-nowrap">+{formatMoney(p.amount, locale)}</TableCell>
+                      <TableCell className="px-4 text-gray-500 text-sm">{p.note ?? ""}</TableCell>
+                      <TableCell className="px-4 text-gray-400 text-xs">{p.createdByName ?? ""}</TableCell>
+                    </TableRow>
+                  ))}
+                  {payments.length === 0 && (
+                    <TableRow>
+                      <TableCell className="h-20 text-center text-gray-400 italic">{C.noPayments}</TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   )

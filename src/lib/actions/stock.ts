@@ -1,142 +1,190 @@
 'use server'
 
-import { prisma } from "@/lib/prisma"
-import { requireRole } from "@/lib/session"
 import { revalidatePath } from "next/cache"
+import { z } from "zod"
+import { requireRole } from "@/lib/session"
 import { action, ActionError } from "@/lib/action"
+import { fields, parseForm } from "@/lib/validation"
+import { serializable } from "@/lib/db"
+import { addStock, applyIncomingCost, recordSupplierPurchase, takeStock, totalStock } from "@/lib/inventory"
+import { roundMoney, roundQty } from "@/lib/domain/costing"
+import { checkLowStock } from "@/lib/alerts"
+import { formatNumber } from "@/lib/format"
+import { getLocale, getT } from "@/i18n/server"
+import { assertOrgSupplier, assertOrgWarehouse, findOrgProduct } from "@/lib/guards"
 
+/**
+ * Kirim (xarid): narx majburiy — tannarx o'rtacha tortilgan usulda yangilanadi.
+ * Ta'minotchi tanlansa, to'lanmagan qism unga qarz bo'lib yoziladi.
+ */
 export const stockIn = action(async function stockIn(formData: FormData) {
-  const { organizationId: orgId } = await requireRole('ADMIN', 'MANAGER')
-  const productId = formData.get("productId") as string
-  const warehouseId = formData.get("warehouseId") as string
-  const quantity = parseFloat(formData.get("quantity") as string)
-  const note = formData.get("note") as string
+  const me = await requireRole('ADMIN', 'MANAGER')
+  const t = await getT()
+  const f = fields(t)
+  const L = t.inventory
+  const input = parseForm(z.object({
+    productId: f.id(t.common.product),
+    warehouseId: f.id(t.common.warehouse),
+    quantity: f.positive(t.common.quantity),
+    unitPrice: f.nonNegative(L.unitPrice),
+    supplierId: f.optionalId(),
+    paidAmount: f.optionalNonNegative(L.paidNow),
+    note: f.optionalText(t.common.note),
+  }), formData)
 
-  if (!productId || !warehouseId) throw new ActionError("Ma'lumotlar to'liq emas")
-  if (!quantity || quantity <= 0) throw new ActionError("Miqdor 0 dan katta bo'lishi kerak")
+  const product = await findOrgProduct(me.organizationId, input.productId)
+  if (product.isRollTracked) throw new ActionError(L.rollUseRollsPage)
+  await assertOrgWarehouse(me.organizationId, input.warehouseId)
 
-  const [product, warehouse] = await Promise.all([
-    prisma.product.findFirst({ where: { id: productId, organizationId: orgId } }),
-    prisma.warehouse.findFirst({ where: { id: warehouseId, organizationId: orgId } })
-  ])
-  if (!product) throw new ActionError("Mahsulot topilmadi yoki ruxsat yo'q")
-  if (!warehouse) throw new ActionError("Ombor topilmadi yoki ruxsat yo'q")
+  const total = roundMoney(input.quantity * input.unitPrice)
+  if (input.supplierId) {
+    await assertOrgSupplier(me.organizationId, input.supplierId)
+    if (input.paidAmount === undefined) throw new ActionError(t.validation.required(L.paidNow))
+    if (input.paidAmount > total) throw new ActionError(t.sales.paidMoreThanTotal)
+  }
 
-  await prisma.$transaction(async (tx) => {
-    // 1. StockLevel-ni yangilash yoki yaratish
-    await tx.stockLevel.upsert({
-      where: {
-        productId_warehouseId: {
-          productId,
-          warehouseId,
-        }
-      },
-      update: {
-        quantity: { increment: quantity }
-      },
-      create: {
-        productId,
-        warehouseId,
-        quantity,
-      }
-    })
+  await serializable(async (tx) => {
+    const qtyBefore = await totalStock(tx, product.id)
+    await addStock(tx, product.id, input.warehouseId, input.quantity)
+    await applyIncomingCost(tx, product, qtyBefore, input.quantity, input.unitPrice)
 
-    // 2. Tranzaksiyani yozish
     await tx.stockMovement.create({
       data: {
         type: 'IN',
-        quantity,
-        productId,
-        toWarehouseId: warehouseId,
-        organizationId: orgId,
-        note
+        quantity: roundQty(input.quantity),
+        productId: product.id,
+        toWarehouseId: input.warehouseId,
+        unitCost: input.unitPrice,
+        supplierId: input.supplierId ?? null,
+        creatorId: me.id,
+        organizationId: me.organizationId,
+        note: input.note ?? null,
       }
     })
+
+    if (input.supplierId) {
+      await recordSupplierPurchase(tx, {
+        organizationId: me.organizationId,
+        supplierId: input.supplierId,
+        total,
+        paid: input.paidAmount ?? 0,
+        userId: me.id,
+        note: product.name,
+      })
+    }
   })
 
   revalidatePath("/inventory")
-  revalidatePath("/movements")
+  revalidatePath("/history")
+  revalidatePath("/suppliers")
 })
 
+/**
+ * Brak (WASTAGE: yo'qotilgan miqdor) yoki taftish (REVISION: haqiqiy sanalgan qoldiq).
+ * Boshqa turlar qabul qilinmaydi — aks holda soxta "ishlab chiqarish" yozish mumkin edi.
+ */
 export const stockAdjust = action(async function stockAdjust(formData: FormData) {
-  // Brak/inventarizatsiya qoldiqni o'zgartiradi — faqat rahbariyat huquqi
-  const { organizationId: orgId } = await requireRole('ADMIN', 'MANAGER')
-  const productId = formData.get("productId") as string
-  const warehouseId = formData.get("warehouseId") as string
-  const quantity = parseFloat(formData.get("quantity") as string)
-  const type = formData.get("type") as any // 'WASTAGE' | 'REVISION' | 'ADJUSTMENT'
-  const note = formData.get("note") as string
+  const me = await requireRole('ADMIN', 'MANAGER')
+  const t = await getT()
+  const locale = await getLocale()
+  const f = fields(t)
+  const L = t.inventory
+  const base = parseForm(z.object({
+    productId: f.id(t.common.product),
+    warehouseId: f.id(t.common.warehouse),
+    type: f.oneOf(t.common.type, ['WASTAGE', 'REVISION'] as const),
+    note: f.text(L.reasonRequired, 500),
+  }), formData)
+  const { quantity } = parseForm(z.object({
+    quantity: base.type === 'WASTAGE' ? f.positive(L.wastageQty) : f.nonNegative(L.actualQty),
+  }), formData)
 
-  if (!productId || !warehouseId || isNaN(quantity) || !type || !note) {
-    throw new ActionError("Ma'lumotlar to'liq emas. Izoh qoldirish majburiy!")
-  }
+  const product = await findOrgProduct(me.organizationId, base.productId)
+  // Rulonli xomashyoning umumiy qoldig'i rulonlar yig'indisiga teng bo'lishi shart
+  if (product.isRollTracked) throw new ActionError(L.rollAdjustUseRolls)
+  await assertOrgWarehouse(me.organizationId, base.warehouseId)
 
-  const [adjProduct, adjWarehouse] = await Promise.all([
-    prisma.product.findFirst({ where: { id: productId, organizationId: orgId } }),
-    prisma.warehouse.findFirst({ where: { id: warehouseId, organizationId: orgId } })
-  ])
-  if (!adjProduct) throw new ActionError("Mahsulot topilmadi yoki ruxsat yo'q")
-  if (!adjWarehouse) throw new ActionError("Ombor topilmadi yoki ruxsat yo'q")
-
-  await prisma.$transaction(async (tx) => {
-    // Serializable isolation: parallel so'rovlar qoldiqni manfiyga tushirolmaydi
-    await tx.$executeRaw`SET TRANSACTION ISOLATION LEVEL SERIALIZABLE`
-
-    const currentStock = await tx.stockLevel.findUnique({
-      where: { productId_warehouseId: { productId, warehouseId } }
-    })
-
-    let diff = quantity
-
-    if (type === 'REVISION') {
-      // REVISION holatida 'quantity' - bu yangi real miqdor. 
-      // Biz farqni (diff) hisoblab auditga yozamiz.
-      diff = quantity - (currentStock?.quantity || 0)
-      
-      await tx.stockLevel.upsert({
-        where: { productId_warehouseId: { productId, warehouseId } },
-        update: { quantity: quantity },
-        create: { productId, warehouseId, quantity }
-      })
+  const decreasedBy = await serializable(async (tx) => {
+    let diff: number
+    if (base.type === 'WASTAGE') {
+      const taken = await takeStock(tx, product.id, base.warehouseId, quantity)
+      if (!taken.ok) throw new ActionError(L.notEnough(product.name, formatNumber(taken.available, locale)))
+      diff = -quantity
     } else {
-      // WASTAGE yoki ADJUSTMENT holatida 'quantity' - bu o'zgarish miqdori (odatda manfiy)
-      if (!currentStock || currentStock.quantity === 0) {
-        throw new ActionError("Omborda mahsulot yo'q")
-      }
-
-      const newQuantity = (currentStock?.quantity || 0) + quantity
-      if (newQuantity < 0) {
-        throw new ActionError(
-          `Omborda yetarli mahsulot yo'q. Mavjud: ${currentStock?.quantity ?? 0}`
-        )
-      }
-
+      const level = await tx.stockLevel.findUnique({
+        where: { productId_warehouseId: { productId: product.id, warehouseId: base.warehouseId } }
+      })
+      diff = roundQty(quantity - (level?.quantity ?? 0))
       await tx.stockLevel.upsert({
-        where: { productId_warehouseId: { productId, warehouseId } },
-        update: { quantity: { increment: quantity } },
-        create: { productId, warehouseId, quantity }
+        where: { productId_warehouseId: { productId: product.id, warehouseId: base.warehouseId } },
+        update: { quantity: roundQty(quantity) },
+        create: { productId: product.id, warehouseId: base.warehouseId, quantity: roundQty(quantity) }
       })
     }
 
-    // Harakatlar tarixiga yozish
     await tx.stockMovement.create({
       data: {
-        type,
+        type: base.type,
         quantity: diff,
-        productId,
-        // Wastage odatda chiqim hisoblanadi
-        fromWarehouseId: diff < 0 ? warehouseId : null,
-        toWarehouseId: diff > 0 ? warehouseId : null,
-        organizationId: orgId,
-        note: `[${type}] ${note}`
+        productId: product.id,
+        fromWarehouseId: diff < 0 ? base.warehouseId : null,
+        toWarehouseId: diff >= 0 ? base.warehouseId : null,
+        unitCost: product.costPrice,
+        creatorId: me.id,
+        organizationId: me.organizationId,
+        note: base.note,
+      }
+    })
+    return -diff
+  })
+
+  await checkLowStock(product.id, me.organizationId, decreasedBy)
+
+  revalidatePath("/inventory")
+  revalidatePath("/history")
+})
+
+/** Oddiy (rulonsiz) mahsulotni bir ombordan boshqasiga ko'chirish */
+export const transferStock = action(async function transferStock(formData: FormData) {
+  const me = await requireRole('ADMIN', 'MANAGER')
+  const t = await getT()
+  const locale = await getLocale()
+  const f = fields(t)
+  const L = t.inventory
+  const input = parseForm(z.object({
+    productId: f.id(t.common.product),
+    fromWarehouseId: f.id(L.fromWarehouse),
+    toWarehouseId: f.id(L.toWarehouse),
+    quantity: f.positive(t.common.quantity),
+    note: f.optionalText(t.common.note),
+  }), formData)
+
+  if (input.fromWarehouseId === input.toWarehouseId) throw new ActionError(L.sameWarehouse)
+  const product = await findOrgProduct(me.organizationId, input.productId)
+  if (product.isRollTracked) throw new ActionError(L.rollTransferUseRollsPage)
+  await assertOrgWarehouse(me.organizationId, input.fromWarehouseId)
+  await assertOrgWarehouse(me.organizationId, input.toWarehouseId)
+
+  await serializable(async (tx) => {
+    const taken = await takeStock(tx, product.id, input.fromWarehouseId, input.quantity)
+    if (!taken.ok) throw new ActionError(L.notEnough(product.name, formatNumber(taken.available, locale)))
+    await addStock(tx, product.id, input.toWarehouseId, input.quantity)
+
+    await tx.stockMovement.create({
+      data: {
+        type: 'TRANSFER',
+        quantity: roundQty(input.quantity),
+        productId: product.id,
+        fromWarehouseId: input.fromWarehouseId,
+        toWarehouseId: input.toWarehouseId,
+        unitCost: product.costPrice,
+        creatorId: me.id,
+        organizationId: me.organizationId,
+        note: input.note ?? null,
       }
     })
   })
 
-  // Ogohlantirishlarni tekshirish
-  const { checkLowStock } = await import("@/lib/alerts")
-  await checkLowStock(productId, orgId)
-
   revalidatePath("/inventory")
-  revalidatePath("/movements")
+  revalidatePath("/history")
 })

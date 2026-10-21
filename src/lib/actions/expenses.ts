@@ -1,43 +1,62 @@
 'use server'
 
+import { revalidatePath } from "next/cache"
+import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { requireRole } from "@/lib/session"
-import { revalidatePath } from "next/cache"
 import { action, ActionError } from "@/lib/action"
+import { fields, parseForm } from "@/lib/validation"
+import { roundMoney } from "@/lib/domain/costing"
+import { parseDateRange, type DateRangeParams } from "@/lib/tz"
+import { getT } from "@/i18n/server"
 
-export async function getExpenses() {
+export async function getExpenses(range: DateRangeParams = {}) {
   const { organizationId: orgId } = await requireRole('ADMIN')
-  return await prisma.expense.findMany({
-    where: { organizationId: orgId },
+  const createdAt = parseDateRange(range)
+  const expenses = await prisma.expense.findMany({
+    where: { organizationId: orgId, ...(createdAt ? { createdAt } : {}) },
+    include: { createdBy: { select: { name: true, email: true } } },
     orderBy: { createdAt: 'desc' }
   })
+  return expenses.map(e => ({
+    id: e.id,
+    amount: Number(e.amount),
+    category: e.category,
+    note: e.note,
+    createdByName: e.createdBy?.name ?? e.createdBy?.email ?? null,
+    createdAt: e.createdAt,
+  }))
 }
 
 export const createExpense = action(async function createExpense(formData: FormData) {
-  const { organizationId: orgId } = await requireRole('ADMIN')
-  const amount = parseFloat(formData.get("amount") as string)
-  const category = formData.get("category") as string
-  const note = formData.get("note") as string
-
-  if (!category) throw new ActionError("Ma'lumotlar to'liq emas")
-  if (isNaN(amount) || amount <= 0) throw new ActionError("Summa 0 dan katta bo'lishi kerak")
+  const me = await requireRole('ADMIN')
+  const t = await getT()
+  const f = fields(t)
+  const input = parseForm(z.object({
+    amount: f.positive(t.finance.amount),
+    category: f.text(t.finance.category, 60),
+    note: f.optionalText(t.common.note),
+  }), formData)
 
   await prisma.expense.create({
     data: {
-      amount,
-      category,
-      note,
-      organizationId: orgId
+      amount: roundMoney(input.amount),
+      category: input.category,
+      note: input.note ?? null,
+      createdById: me.id,
+      organizationId: me.organizationId
     }
   })
 
   revalidatePath("/finance")
+  revalidatePath("/reports")
 })
 
 export const deleteExpense = action(async function deleteExpense(id: string) {
   const { organizationId: orgId } = await requireRole('ADMIN')
-  await prisma.expense.delete({
-    where: { id, organizationId: orgId }
-  })
+  const t = await getT()
+  const { count } = await prisma.expense.deleteMany({ where: { id, organizationId: orgId } })
+  if (count === 0) throw new ActionError(t.errors.recordNotFound)
   revalidatePath("/finance")
+  revalidatePath("/reports")
 })

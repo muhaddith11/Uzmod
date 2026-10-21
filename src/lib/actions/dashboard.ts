@@ -1,111 +1,85 @@
 'use server'
 
 import { prisma } from "@/lib/prisma"
-import { auth } from "@/auth"
-import { subDays, startOfDay, format } from "date-fns"
-import { ActionError } from "@/lib/action"
-
-async function getOrgId() {
-  const session = await auth()
-  if (!session?.user) throw new ActionError("Avtorizatsiya kerak")
-  return (session.user as any).organizationId
-}
+import { getSessionUser, isManagement } from "@/lib/session"
+import { addDays, lastTashkentDays, startOfTashkentDayFor } from "@/lib/tz"
+import { formatShortDay } from "@/lib/format"
+import { getLocale } from "@/i18n/server"
 
 export async function getDashboardData() {
-  const orgId = await getOrgId()
+  const me = await getSessionUser()
+  const orgId = me.organizationId
+  const locale = await getLocale()
+  const now = new Date()
+  const todayStart = startOfTashkentDayFor(now)
+  const days = lastTashkentDays(7, now)
 
-  // 1. Eng ko'p sotilgan (Chiqim qilingan) mahsulotlar
-  const topProducts = await prisma.stockMovement.groupBy({
-    by: ['productId'],
-    where: {
-      organizationId: orgId,
-      type: 'OUT',
-      quantity: { lt: 0 } // Chiqim salbiy qiymatda bo'lishi mumkin yoki musbat, biz sxemada quantityni parseFloat qilganmiz
-    },
-    _sum: {
-      quantity: true
-    },
-    orderBy: {
-      _sum: {
-        quantity: 'asc' // Salbiy bo'lgani uchun 'asc' eng ko'p degani (masalan -100 < -10)
-      }
-    },
-    take: 5
+  const [topItems, warehouseCount, rawMaterials, production, producedToday, salesToday, openRolls] = await Promise.all([
+    // Oxirgi 30 kunda eng ko'p sotilganlar (bekor qilinganlar hisobga olinmaydi)
+    prisma.saleItem.groupBy({
+      by: ['productId'],
+      where: { sale: { organizationId: orgId, status: 'ACTIVE', createdAt: { gte: addDays(todayStart, -29) } } },
+      _sum: { quantity: true },
+      orderBy: { _sum: { quantity: 'desc' } },
+      take: 5
+    }),
+    prisma.warehouse.count({ where: { organizationId: orgId } }),
+    prisma.product.findMany({
+      where: { organizationId: orgId, isRawMaterial: true },
+      include: { stockLevels: { select: { quantity: true } } }
+    }),
+    // 7 kunlik grafik — bitta so'rov, kunlarga JS'da bo'linadi
+    prisma.stockMovement.findMany({
+      where: { organizationId: orgId, type: 'PRODUCTION', quantity: { gt: 0 }, createdAt: { gte: days[0] } },
+      select: { quantity: true, createdAt: true }
+    }),
+    prisma.stockMovement.aggregate({
+      where: { organizationId: orgId, type: 'PRODUCTION', quantity: { gt: 0 }, createdAt: { gte: todayStart } },
+      _sum: { quantity: true }
+    }),
+    isManagement(me.role)
+      ? prisma.sale.aggregate({
+          where: { organizationId: orgId, status: 'ACTIVE', createdAt: { gte: todayStart } },
+          _sum: { totalAmount: true }
+        })
+      : Promise.resolve(null),
+    prisma.roll.count({ where: { organizationId: orgId, status: { not: 'FINISHED' } } }),
+  ])
+
+  const names = await prisma.product.findMany({
+    where: { id: { in: topItems.map(i => i.productId) }, organizationId: orgId },
+    select: { id: true, name: true, unit: true }
+  })
+  const byId = new Map(names.map(p => [p.id, p]))
+
+  const chartData = days.map(start => {
+    const end = addDays(start, 1)
+    const total = production
+      .filter(m => m.createdAt >= start && m.createdAt < end)
+      .reduce((acc, m) => acc + m.quantity, 0)
+    return { name: formatShortDay(start, locale), value: total }
   })
 
-  const productIds = topProducts.map(p => p.productId)
-  const productDetails = await prisma.product.findMany({
-    where: { id: { in: productIds } },
-    select: { id: true, name: true }
-  })
-  const productMap = new Map(productDetails.map(p => [p.id, p.name]))
-
-  const topProductDetails = topProducts.map(p => ({
-    name: productMap.get(p.productId) || "Noma'lum",
-    total: Math.abs(p._sum.quantity || 0)
-  }))
-
-  // 2. Aktiv omborlar soni
-  const warehouseCount = await prisma.warehouse.count({
-    where: { organizationId: orgId }
-  })
-
-  // 3. Qoldig'i kamaygan xomashyolar (Critical Stock < 10)
-  const products = await prisma.product.findMany({
-    where: {
-      organizationId: orgId,
-      isRawMaterial: true
-    },
-    include: {
-      stockLevels: true
-    }
-  })
-
-  const criticalStock = products.map(p => ({
-    name: p.name,
-    unit: p.unit,
-    total: p.stockLevels.reduce((acc, sl) => acc + sl.quantity, 0),
-    // minStockLevel — Prisma Decimal, taqqoslash uchun songa o'giramiz
-    minLevel: Number(p.minStockLevel)
-  })).filter(p => p.minLevel > 0 && p.total <= p.minLevel)
-
-  // 3. Oxirgi 7 kunlik ishlab chiqarish grafigi
-  const last7Days = Array.from({ length: 7 }).map((_, i) => {
-    const date = subDays(new Date(), i)
-    return startOfDay(date)
-  }).reverse()
-
-  const chartData = await Promise.all(
-    last7Days.map(async (date) => {
-      const nextDate = new Date(date)
-      nextDate.setDate(date.getDate() + 1)
-
-      const production = await prisma.stockMovement.aggregate({
-        where: {
-          organizationId: orgId,
-          type: 'PRODUCTION',
-          quantity: { gt: 0 },
-          createdAt: {
-            gte: date,
-            lt: nextDate
-          }
-        },
-        _sum: {
-          quantity: true
-        }
-      })
-
-      return {
-        name: format(date, "dd-MMM"),
-        miqdor: production._sum.quantity || 0
-      }
-    })
-  )
+  const criticalStock = rawMaterials
+    .map(p => ({
+      name: p.name,
+      unit: p.unit,
+      total: p.stockLevels.reduce((acc, sl) => acc + sl.quantity, 0),
+      minLevel: Number(p.minStockLevel),
+    }))
+    .filter(p => p.minLevel > 0 && p.total <= p.minLevel)
 
   return {
-    topProducts: topProductDetails,
+    topProducts: topItems.map(i => ({
+      name: byId.get(i.productId)?.name ?? "—",
+      unit: byId.get(i.productId)?.unit ?? "",
+      total: i._sum.quantity ?? 0,
+    })),
     criticalStock,
     chartData,
-    warehouseCount
+    warehouseCount,
+    producedToday: producedToday._sum.quantity ?? 0,
+    salesToday: salesToday ? Number(salesToday._sum.totalAmount ?? 0) : null,
+    openRolls,
   }
 }

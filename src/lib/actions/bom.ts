@@ -1,53 +1,57 @@
 'use server'
 
+import { revalidatePath } from "next/cache"
+import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { requireRole } from "@/lib/session"
-import { revalidatePath } from "next/cache"
 import { action, ActionError } from "@/lib/action"
+import { fields, parseForm } from "@/lib/validation"
+import { getT } from "@/i18n/server"
 
 export const addBOMItem = action(async function addBOMItem(formData: FormData) {
   const { organizationId: orgId } = await requireRole('ADMIN', 'MANAGER')
-  const productId = formData.get("productId") as string
-  const materialId = formData.get("materialId") as string
-  const quantityNeeded = parseFloat(formData.get("quantityNeeded") as string)
+  const t = await getT()
+  const f = fields(t)
+  const input = parseForm(z.object({
+    productId: f.id(t.common.product),
+    materialId: f.id(t.inventory.bomMaterial),
+    quantityNeeded: f.positive(t.inventory.bomQty),
+  }), formData)
 
-  if (!productId || !materialId || !quantityNeeded || quantityNeeded <= 0) {
-    throw new ActionError("Ma'lumotlar to'liq emas")
-  }
-
-  // Mahsulot shu tashkilotga tegishligini tekshirish
   const product = await prisma.product.findFirst({
-    where: { id: productId, organizationId: orgId, isRawMaterial: false }
+    where: { id: input.productId, organizationId: orgId }
   })
-  if (!product) throw new ActionError("Tayyor mahsulot topilmadi")
+  if (!product) throw new ActionError(t.errors.productNotFound)
+  if (product.isRawMaterial) throw new ActionError(t.inventory.bomOnlyFinished)
 
-  // Xomashyo shu tashkilotga tegishligini tekshirish
   const material = await prisma.product.findFirst({
-    where: { id: materialId, organizationId: orgId, isRawMaterial: true }
+    where: { id: input.materialId, organizationId: orgId, isRawMaterial: true }
   })
-  if (!material) throw new ActionError("Xomashyo topilmadi yoki ruxsat yo'q")
+  if (!material) throw new ActionError(t.errors.materialNotFound)
 
-  await prisma.bom.create({
-    data: { productId, materialId, quantityNeeded }
-  })
-  revalidatePath("/inventory")
+  try {
+    await prisma.bom.create({
+      data: { productId: product.id, materialId: material.id, quantityNeeded: input.quantityNeeded }
+    })
+  } catch (error) {
+    if ((error as { code?: string })?.code === 'P2002') throw new ActionError(t.inventory.bomDuplicate)
+    throw error
+  }
+  revalidatePath(`/inventory/${product.id}`)
   revalidatePath("/production")
 })
 
 export const deleteBOMItem = action(async function deleteBOMItem(id: string) {
   const { organizationId: orgId } = await requireRole('ADMIN', 'MANAGER')
+  const t = await getT()
 
-  // BOM shu tashkilotga tegishligini tekshirish
   const bom = await prisma.bom.findFirst({
-    where: { id },
-    include: { product: { select: { organizationId: true } } }
+    where: { id, product: { organizationId: orgId } },
+    select: { id: true, productId: true }
   })
+  if (!bom) throw new ActionError(t.errors.recordNotFound)
 
-  if (!bom || bom.product.organizationId !== orgId) {
-    throw new ActionError("Ruxsat yo'q")
-  }
-
-  await prisma.bom.delete({ where: { id } })
-  revalidatePath("/inventory")
+  await prisma.bom.delete({ where: { id: bom.id } })
+  revalidatePath(`/inventory/${bom.productId}`)
   revalidatePath("/production")
 })

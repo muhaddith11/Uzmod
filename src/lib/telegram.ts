@@ -20,7 +20,10 @@ export function validateTelegramWebAppData(
   const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
   const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
 
-  if (calculatedHash !== hash) return false;
+  // Vaqtga chidamli solishtirish — xesh belgi-belgi taxmin qilinmasin
+  const expected = Buffer.from(calculatedHash, 'hex');
+  const received = Buffer.from(hash, 'hex');
+  if (expected.length !== received.length || !crypto.timingSafeEqual(expected, received)) return false;
 
   // HMAC to'g'ri — endi auth_date yangi ekanini tekshiramiz.
   // Aks holda bir marta oqib chiqqan initData abadiy amal qilardi.
@@ -70,13 +73,13 @@ export async function getBotUsername(): Promise<string | null> {
     const data = await res.json();
     cachedBotUsername = data?.result?.username ?? null;
     return cachedBotUsername;
-  } catch (err: any) {
-    console.error(`[Telegram] Ulanish xatosi: ${err.name}`);
+  } catch (err) {
+    console.error(`[Telegram] Ulanish xatosi: ${(err as Error).name}`);
     return null;
   }
 }
 
-export async function sendTelegramMessage(chatId: string, text: string, replyMarkup?: any): Promise<boolean> {
+export async function sendTelegramMessage(chatId: string, text: string, replyMarkup?: unknown): Promise<boolean> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token || token === 'YOUR_BOT_TOKEN_HERE') return false;
   if (!chatId) return false;
@@ -103,9 +106,9 @@ export async function sendTelegramMessage(chatId: string, text: string, replyMar
     }
 
     return true;
-  } catch (err: any) {
+  } catch (err) {
     // AbortError = timeout, NetworkError = tarmoq muammosi
-    console.error(`[Telegram] Ulanish xatosi: ${err.name}`);
+    console.error(`[Telegram] Ulanish xatosi: ${(err as Error).name}`);
     return false;
   }
 }

@@ -1,31 +1,34 @@
+import { cache } from "react"
+import type { Role } from "@prisma/client"
 import { auth } from "@/auth"
 import { ActionError } from "@/lib/action"
+import { getT } from "@/i18n/server"
 
-export type Role = 'ADMIN' | 'MANAGER' | 'WORKER'
+export type { Role }
 
 export type SessionUser = {
   id: string
   organizationId: string
   role: Role
+  name: string | null
 }
 
 /**
  * Sessiyadan foydalanuvchini oladi. Har bir server action shu yerdan boshlanishi kerak.
+ * Xodim holati (bloklangan/rol) auth.ts dagi jwt callback'da bazadan tekshiriladi.
  */
-export async function getSessionUser(): Promise<SessionUser> {
+export const getSessionUser = cache(async (): Promise<SessionUser> => {
   const session = await auth()
-  if (!session?.user) throw new ActionError("Avtorizatsiya kerak")
-
-  const user = session.user as any
-  if (!user.organizationId) throw new ActionError("Tashkilot aniqlanmadi")
+  if (!session?.user?.id) throw new ActionError((await getT()).errors.unauthorized)
+  if (!session.user.organizationId) throw new ActionError((await getT()).errors.noOrg)
 
   return {
-    id: user.id,
-    organizationId: user.organizationId,
-    // Eski sessiyalarda role bo'lmasligi mumkin — eng kam huquq bilan davom etamiz.
-    role: (user.role ?? 'WORKER') as Role,
+    id: session.user.id,
+    organizationId: session.user.organizationId,
+    role: session.user.role ?? "WORKER",
+    name: session.user.name ?? null,
   }
-}
+})
 
 export async function getOrgId(): Promise<string> {
   const user = await getSessionUser()
@@ -39,7 +42,11 @@ export async function getOrgId(): Promise<string> {
 export async function requireRole(...allowed: Role[]): Promise<SessionUser> {
   const user = await getSessionUser()
   if (!allowed.includes(user.role)) {
-    throw new ActionError("Bu amal uchun ruxsatingiz yo'q")
+    throw new ActionError((await getT()).errors.forbidden)
   }
   return user
+}
+
+export function isManagement(role: Role): boolean {
+  return role === "ADMIN" || role === "MANAGER"
 }

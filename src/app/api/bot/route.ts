@@ -13,7 +13,13 @@ function miniAppKeyboard() {
  * /start <token> — Profil sahifasidagi "Telegram'ni ulash" havolasidan keladi.
  * Token qaysi hisobniki bo'lsa, xabar yuborgan odamning Telegram ID'si o'sha hisobga yoziladi.
  */
-async function linkByToken(message: any, token: string) {
+type TelegramMessage = {
+  text?: string
+  chat: { id: number; type: string }
+  from?: { id: number }
+}
+
+async function linkByToken(message: TelegramMessage, token: string) {
   const chatId = message.chat.id.toString();
 
   // Faqat shaxsiy chatda: guruhda chat.id foydalanuvchiniki emas
@@ -66,8 +72,8 @@ export async function POST(req: Request) {
     return new Response('Forbidden', { status: 403 })
   }
 
-  const body = await req.json();
-  const message = body.message;
+  const body = await req.json().catch(() => null);
+  const message: TelegramMessage | undefined = body?.message;
 
   if (!message || !message.text) {
     return new Response('OK');
@@ -87,9 +93,10 @@ export async function POST(req: Request) {
   }
 
   if (text === '/start') {
-    // Foydalanuvchini bazadan qidirish
+    // Faqat shaxsiy chatda: guruhda chat.id foydalanuvchiniki emas
+    if (message.chat.type !== 'private' || !message.from?.id) return new Response('OK');
     const user = await prisma.user.findUnique({
-      where: { telegramId: chatId },
+      where: { telegramId: message.from.id.toString() },
       include: { organization: true }
     });
 

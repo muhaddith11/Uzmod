@@ -1,37 +1,48 @@
 import { prisma } from "@/lib/prisma"
 import { sendTelegramMessage, escapeHtml } from "@/lib/telegram"
+import { messages } from "@/i18n/messages"
+import { formatNumber } from "@/lib/format"
 
-export async function checkLowStock(productId: string, organizationId: string) {
+/**
+ * Qoldiq minimal limitdan pastga TUSHGAN paytda (avval yuqori edi) barcha faol
+ * adminlarga Telegram xabari yuboradi. Har amalda qayta-qayta yuborilmaydi.
+ * `decreasedBy` — shu amalda qancha kamaydi (oldingi qoldiqni topish uchun).
+ */
+export async function checkLowStock(productId: string, organizationId: string, decreasedBy: number) {
+  if (!(decreasedBy > 0)) return
+
   const product = await prisma.product.findFirst({
     where: { id: productId, organizationId },
     include: {
       stockLevels: true,
-      organization: { include: { users: { where: { role: 'ADMIN' } } } }
+      organization: {
+        include: { users: { where: { role: 'ADMIN', isActive: true, telegramId: { not: null } } } }
+      }
     }
   })
 
-  // minStockLevel — Prisma Decimal, taqqoslash uchun songa o'giramiz
   const minLevel = Number(product?.minStockLevel ?? 0)
   if (!product || minLevel <= 0) return
 
   const totalQty = product.stockLevels.reduce((acc, sl) => acc + sl.quantity, 0)
+  const previousQty = totalQty + decreasedBy
+  if (!(totalQty <= minLevel && previousQty > minLevel)) return
 
-  if (totalQty <= minLevel) {
-    const admin = product.organization.users[0]
-    if (admin && admin.telegramId) {
-      const name = escapeHtml(product.name)
-      const unit = escapeHtml(product.unit)
-      const message = `⚠️ <b>DIQQAT: QOLDIQ KAMAYDI</b>\n\n` +
-                      `📦 Mahsulot: <b>${name}</b>\n` +
-                      `📉 Hozirgi qoldiq: <b>${totalQty} ${unit}</b>\n` +
-                      `🔔 Minimal limit: <b>${minLevel} ${unit}</b>\n\n` +
-                      `Iltimos, zaxirani to'ldiring!`
-      
-      try {
-        await sendTelegramMessage(admin.telegramId, message)
-      } catch (error) {
+  // Bot xabarlari o'zbekcha: adminning tilini bilmaymiz
+  const t = messages.uz
+  const text = t.inventory.lowStockAlert(
+    escapeHtml(product.name),
+    formatNumber(totalQty, "uz"),
+    escapeHtml(product.unit),
+    formatNumber(minLevel, "uz"),
+  )
+
+  await Promise.all(
+    product.organization.users.map(admin =>
+      sendTelegramMessage(admin.telegramId!, text).catch(error => {
         console.error("Telegram xabar yuborishda xato:", error)
-      }
-    }
-  }
+        return false
+      })
+    )
+  )
 }

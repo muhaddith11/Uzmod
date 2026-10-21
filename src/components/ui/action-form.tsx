@@ -14,11 +14,13 @@ export function ActionForm({
   action,
   className,
   successMessage,
+  onSuccess,
   children,
 }: {
   action: (formData: FormData) => Promise<ActionResult>
   className?: string
   successMessage?: string
+  onSuccess?: () => void
   children: React.ReactNode
 }) {
   const [error, setError] = useState<string | null>(null)
@@ -39,6 +41,7 @@ export function ActionForm({
       }
       form.reset()
       setSuccess(true)
+      onSuccess?.()
     })
   }
 
@@ -49,13 +52,13 @@ export function ActionForm({
       className={cn(className, isPending && "opacity-60 pointer-events-none")}
     >
       {error && (
-        <div className="col-span-full rounded-xl bg-rose-50 border border-rose-200 p-3 text-sm text-rose-700 font-medium flex items-start gap-2">
+        <div role="alert" className="col-span-full rounded-xl bg-rose-50 border border-rose-200 p-3 text-sm text-rose-700 font-medium flex items-start gap-2">
           <AlertTriangleIcon className="w-4 h-4 mt-0.5 shrink-0" />
           <span>{error}</span>
         </div>
       )}
       {success && successMessage && (
-        <div className="col-span-full rounded-xl bg-green-50 border border-green-200 p-3 text-sm text-green-700 font-medium flex items-start gap-2">
+        <div role="status" className="col-span-full rounded-xl bg-green-50 border border-green-200 p-3 text-sm text-green-700 font-medium flex items-start gap-2">
           <CheckCircle2Icon className="w-4 h-4 mt-0.5 shrink-0" />
           <span>{successMessage}</span>
         </div>

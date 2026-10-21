@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "ai-color-palette",
+        "value": "*",
+        "files": [
+          "src/components/sales/SaleForm.tsx"
+        ],
+        "createdAt": "2026-10-21T15:39:10.850Z",
+        "reason": "Claude triage: flat indigo-700 text on indigo-50 is the project's existing brand color (logo, nav, primary buttons app-wide); no gradient, no dark background"
+      }
+    ]
+  }
+}

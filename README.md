@@ -1,36 +1,57 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Uzmod Ombor
 
-## Getting Started
+Tikuv (paypoq) sexi uchun ombor, ishlab chiqarish va savdo tizimi. Bir nechta
+tashkilot bitta o'rnatmada ishlaydi (multi-tenant). Interfeys o'zbek va rus tillarida.
 
-First, run the development server:
+**Imkoniyatlar:** katalog va qoldiqlar (omborlar bo'yicha), rulonlarni partiya bilan
+qabul qilish va FIFO sarflash, resept (BOM) bo'yicha ishlab chiqarish, ko'p qatorli
+sotuv (naqd/karta/nasiya) va uni bekor qilish, mijozlar qarzi, ta'minotchilar va
+ularga qarz, omborlar orasida ko'chirish, xarajatlar, ishbay haq va bonus/jarima,
+moliyaviy hisobot, Excel eksport, Telegram Mini App.
+
+**Rollar:** `ADMIN` (hammasi), `MANAGER` (sotuv, mijoz, ta'minotchi, xodim — moliyasiz),
+`WORKER` (tikuv va rulon qabul qilish; narxlarni ko'rmaydi).
+
+## Texnologiyalar
+
+Next.js 16 (App Router, server actions) · React 19 · Prisma 7 + PostgreSQL (Neon) ·
+NextAuth v5 (JWT) · Tailwind 4 · zod · exceljs · Vitest.
+
+## Lokal ishga tushirish
 
 ```bash
+npm install
+npm run db:local   # alohida terminalda: PGlite, 127.0.0.1:5433, ma'lumot .pglite-data/ da
+npx prisma migrate deploy
+npm run db:seed    # admin@test.com / admin123
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+`.env` da kerak: `DATABASE_URL`, `AUTH_SECRET` (yoki `NEXTAUTH_SECRET`),
+Telegram uchun `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `NEXT_PUBLIC_APP_URL`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Buyruqlar
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Buyruq | Nima qiladi |
+| --- | --- |
+| `npm run dev` | Dev server |
+| `npm test` | Unit va integratsion testlar (o'zi xotirada PGlite ko'taradi) |
+| `npm run typecheck` / `npm run lint` | TypeScript va ESLint |
+| `npm run db:migration -- nom` | Sxema o'zgarishidan yangi migratsiya yaratadi va lokal qo'llaydi |
+| `npm run vercel-build` | `prisma migrate deploy && next build` (Vercel shuni ishlatadi) |
 
-## Learn More
+## Hisob-kitob qoidalari
 
-To learn more about Next.js, take a look at the following resources:
+- **Tannarx** — o'rtacha tortilgan: har bir kirim (narx bilan), ishlab chiqarish va
+  qaytarishda qayta hisoblanadi. Tayyor mahsulot tannarxi = resept bo'yicha xomashyo + ishbay haq.
+- **Sof foyda** = savdo − sotilgan mahsulot tannarxi − operatsion xarajatlar − bonus/jarima.
+  Ishbay haq tannarx ichida, alohida ayirilmaydi.
+- Xomashyo xaridi xarajat sifatida yozilmaydi — u kirim narxi orqali tannarxga kiradi.
+- Sanalar va kun chegaralari Toshkent vaqtida (UTC+5).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Xavfsizlik
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Har bir server action sessiya, rol va tashkilotni o'zi tekshiradi. Xodim bloklansa yoki
+paroli almashtirilsa (`sessionVersion`) uning sessiyalari darhol bekor bo'ladi. Login va
+ro'yxatdan o'tish urinishlari bazadagi hisoblagich bilan cheklangan. Telegram webhook
+maxfiy kalitsiz so'rovlarni rad etadi.

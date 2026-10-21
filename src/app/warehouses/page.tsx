@@ -1,90 +1,64 @@
 import { getWarehouses, createWarehouse, deleteWarehouse } from "@/lib/actions/warehouses"
 import { ActionForm } from "@/components/ui/action-form"
+import { Field, inputClass } from "@/components/ui/field"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { DeleteButton } from "@/components/ui/delete-button"
+import { PageHeader } from "@/components/PageHeader"
+import { getT } from "@/i18n/server"
 import { WarehouseIcon, PlusIcon, MapPinIcon } from "lucide-react"
 
 export default async function WarehousesPage() {
-  const warehouses = await getWarehouses()
+  const [t, warehouses] = await Promise.all([getT(), getWarehouses()])
+  const W = t.warehouses
 
   return (
-    <div className="p-8 max-w-6xl mx-auto space-y-8">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-          <WarehouseIcon className="w-8 h-8 text-blue-600" />
-          Omborlar Boshqaruvi
-        </h1>
-        <p className="text-gray-500">Tashkilotingizdagi barcha jismoniy omborlar va sexlar ro'yxati</p>
-      </div>
+    <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-8">
+      <PageHeader icon={<WarehouseIcon className="text-blue-600" />} title={W.title} subtitle={W.subtitle} />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
         <Card className="md:col-span-1 shadow-sm border-none bg-white">
           <CardHeader>
-            <CardTitle className="text-xl flex items-center gap-2">
-              <PlusIcon className="w-5 h-5" />
-              Yangi Ombor
+            <CardTitle className="text-lg flex items-center gap-2">
+              <PlusIcon className="w-5 h-5 text-blue-600" />
+              {W.newWarehouse}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ActionForm action={createWarehouse} className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Ombor nomi</label>
-                <Input name="name" placeholder="Masalan: Asosiy ombor" required />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Manzil (ixtiyoriy)</label>
-                <Input name="address" placeholder="Toshkent sh., Yunusobod..." />
-              </div>
-              <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700">
-                Saqlash
-              </Button>
+            <ActionForm action={createWarehouse} successMessage={W.added} className="space-y-4">
+              <Field label={W.name}>
+                <Input name="name" placeholder={W.namePlaceholder} required className={inputClass} />
+              </Field>
+              <Field label={W.address}>
+                <Input name="address" placeholder={W.addressPlaceholder} className={inputClass} />
+              </Field>
+              <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 font-bold h-11">{t.common.add}</Button>
             </ActionForm>
           </CardContent>
         </Card>
 
-        <Card className="md:col-span-2 shadow-sm border-none bg-white">
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-gray-50 hover:bg-gray-50">
-                  <TableHead className="py-4 px-6 font-bold">Ombor nomi</TableHead>
-                  <TableHead className="py-4 px-6 font-bold">Manzil</TableHead>
-                  <TableHead className="py-4 px-6 text-right font-bold">Amallar</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {warehouses.map((warehouse) => (
-                  <TableRow key={warehouse.id} className="hover:bg-gray-50/50">
-                    <TableCell className="py-4 px-6 font-medium text-gray-900">{warehouse.name}</TableCell>
-                    <TableCell className="py-4 px-6 text-gray-500">
-                      <div className="flex items-center gap-1">
-                        <MapPinIcon className="w-4 h-4" />
-                        {warehouse.address || "Belgilanmagan"}
-                      </div>
-                    </TableCell>
-                    <TableCell className="py-4 px-6 text-right">
-                      <DeleteButton
-                        action={async () => { 'use server'; return deleteWarehouse(warehouse.id) }}
-                        confirmText={`"${warehouse.name}" omborini o'chirasizmi?`}
-                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {warehouses.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={3} className="h-32 text-center text-gray-400 italic">
-                      Hali omborlar qo'shilmagan
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {warehouses.map(w => (
+            <Card key={w.id} className="shadow-sm border-none bg-white">
+              <CardContent className="pt-6 flex justify-between items-start gap-3">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="p-3 rounded-xl bg-blue-50 text-blue-600 shrink-0">
+                    <WarehouseIcon className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-bold text-gray-900 truncate">{w.name}</p>
+                    <p className="text-xs text-gray-500 flex items-center gap-1">
+                      <MapPinIcon className="w-3 h-3 shrink-0" /> {w.address || W.noAddress}
+                    </p>
+                  </div>
+                </div>
+                <DeleteButton action={deleteWarehouse.bind(null, w.id)} confirmText={W.confirmDelete(w.name)} />
+              </CardContent>
+            </Card>
+          ))}
+          {warehouses.length === 0 && <p className="text-gray-400 italic">{W.empty}</p>}
+        </div>
       </div>
     </div>
   )

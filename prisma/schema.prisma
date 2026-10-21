@@ -9,42 +9,53 @@ datasource db {
 
 // 1. Tashkilot (SaaS asosi)
 model Organization {
-  id          String   @id @default(cuid())
-  name        String
-  subscription String   @default("free")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  users           User[]
-  products        Product[]
-  warehouses      Warehouse[]
-  movements       StockMovement[]
-  customers       Customer[]
-  sales           Sale[]
-  expenses        Expense[]
+  users            User[]
+  products         Product[]
+  warehouses       Warehouse[]
+  movements        StockMovement[]
+  customers        Customer[]
+  sales            Sale[]
+  expenses         Expense[]
   staffAdjustments StaffAdjustment[]
   rolls            Roll[]
   debtPayments     DebtPayment[]
+  suppliers        Supplier[]
+  supplierPayments SupplierPayment[]
 }
 
 // 2. Foydalanuvchilar (Auth uchun)
 model User {
-  id             String       @id @default(cuid())
-  email          String       @unique
-  name           String?
-  passwordHash   String
-  telegramId     String?      @unique
+  id           String  @id @default(cuid())
+  email        String  @unique
+  name         String?
+  passwordHash String
+  telegramId   String? @unique
   // Profil sahifasidan bot orqali ulash uchun bir martalik token (t.me/<bot>?start=<token>)
   telegramLinkToken          String?   @unique
   telegramLinkTokenExpiresAt DateTime?
-  role           Role         @default(WORKER)
+  role                       Role      @default(WORKER)
+  // Bloklangan xodim tizimga kira olmaydi, ochiq sessiyalari ham bekor bo'ladi
+  isActive                   Boolean   @default(true)
+  // Parol almashtirilsa yoki xodim bloklansa oshiriladi — eski JWT'lar yaroqsiz bo'ladi
+  sessionVersion             Int       @default(0)
 
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  adjustments    StaffAdjustment[]
-  movements      StockMovement[] @relation("WorkerMovements")
-  createdMovements StockMovement[] @relation("CreatorMovements")
+  adjustments             StaffAdjustment[] @relation("StaffAdjustments")
+  movements               StockMovement[]   @relation("WorkerMovements")
+  createdMovements        StockMovement[]   @relation("CreatorMovements")
+  createdSales            Sale[]            @relation("SaleCreator")
+  cancelledSales          Sale[]            @relation("SaleCanceller")
+  createdExpenses         Expense[]         @relation("ExpenseCreator")
+  createdDebtPayments     DebtPayment[]     @relation("DebtPaymentCreator")
+  createdAdjustments      StaffAdjustment[] @relation("AdjustmentCreator")
+  createdSupplierPayments SupplierPayment[] @relation("SupplierPaymentCreator")
 
   @@index([organizationId])
 }
@@ -57,46 +68,49 @@ enum Role {
 
 // 3. Omborlar (Haqiqiy jismoniy joylar)
 model Warehouse {
-  id             String       @id @default(cuid())
-  name           String
-  address        String?
+  id      String  @id @default(cuid())
+  name    String
+  address String?
 
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  stockLevels    StockLevel[]
-  movementsFrom  StockMovement[] @relation("FromWarehouse")
-  movementsTo    StockMovement[] @relation("ToWarehouse")
-  rolls          Roll[]
+  stockLevels   StockLevel[]
+  movementsFrom StockMovement[] @relation("FromWarehouse")
+  movementsTo   StockMovement[] @relation("ToWarehouse")
+  rolls         Roll[]
+  sales         Sale[]
 
   @@index([organizationId])
 }
 
 // 4. Mahsulot va Xomashyo (Yagona model)
 model Product {
-  id             String       @id @default(cuid())
-  name           String
-  sku            String?
-  unit           String       @default("dona")
-  isRawMaterial  Boolean      @default(false)
+  id            String  @id @default(cuid())
+  name          String
+  sku           String?
+  unit          String  @default("dona")
+  isRawMaterial Boolean @default(false)
   // Rulon (bobina) bilan hisoblanadimi? Faqat xomashyo uchun ma'noga ega.
   // Yoqilsa, ishlab chiqarishda ishchi aniq rulonni tanlashi shart bo'ladi.
-  isRollTracked  Boolean      @default(false)
-  price          Decimal      @default(0) @db.Decimal(15, 2)
-  costPrice      Decimal      @default(0) @db.Decimal(15, 2)
-  productionWage Decimal      @default(0) @db.Decimal(15, 2)
-  minStockLevel  Decimal      @default(0) @db.Decimal(15, 2)
+  isRollTracked  Boolean @default(false)
+  price          Decimal @default(0) @db.Decimal(15, 2)
+  // O'rtacha tortilgan tannarx: kirim narxi va ishlab chiqarish (xomashyo + ishbay haq)
+  // bo'yicha har bir kirimda qayta hisoblanadi
+  costPrice      Decimal @default(0) @db.Decimal(15, 2)
+  productionWage Decimal @default(0) @db.Decimal(15, 2)
+  minStockLevel  Decimal @default(0) @db.Decimal(15, 2)
 
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  bomItems       Bom[]        @relation("FinishedProduct")
-  usedInBoms     Bom[]        @relation("RawMaterial")
+  bomItems   Bom[] @relation("FinishedProduct")
+  usedInBoms Bom[] @relation("RawMaterial")
 
-  stockLevels    StockLevel[]
-  movements      StockMovement[]
-  saleItems      SaleItem[]
-  rolls          Roll[]
+  stockLevels StockLevel[]
+  movements   StockMovement[]
+  saleItems   SaleItem[]
+  rolls       Roll[]
 
   @@index([organizationId])
   @@index([organizationId, isRawMaterial])
@@ -120,62 +134,77 @@ model Bom {
 
 // 6. Inventarizatsiya (Har bir ombor uchun alohida)
 model StockLevel {
-  id             String    @id @default(cuid())
-  productId      String
-  product        Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
-  warehouseId    String
-  warehouse      Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
-  quantity       Float     @default(0)
+  id          String    @id @default(cuid())
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  quantity    Float     @default(0)
 
   @@unique([productId, warehouseId])
 }
 
 // 7. Harakatlar Auditi
 model StockMovement {
-  id              String       @id @default(cuid())
-  type            MovementType
-  quantity        Float
+  id       String       @id @default(cuid())
+  type     MovementType
+  quantity Float
 
-  productId       String
-  product         Product      @relation(fields: [productId], references: [id])
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
 
   fromWarehouseId String?
-  fromWarehouse   Warehouse?   @relation("FromWarehouse", fields: [fromWarehouseId], references: [id])
+  fromWarehouse   Warehouse? @relation("FromWarehouse", fields: [fromWarehouseId], references: [id])
   toWarehouseId   String?
-  toWarehouse     Warehouse?   @relation("ToWarehouse", fields: [toWarehouseId], references: [id])
+  toWarehouse     Warehouse? @relation("ToWarehouse", fields: [toWarehouseId], references: [id])
 
-  workerId        String?
-  worker          User?        @relation("WorkerMovements", fields: [workerId], references: [id])
+  workerId String?
+  worker   User?   @relation("WorkerMovements", fields: [workerId], references: [id])
 
   // Qaysi rulondan sarflandi (rulon bilan hisoblanadigan xomashyo uchun)
-  rollId          String?
-  roll            Roll?        @relation(fields: [rollId], references: [id], onDelete: SetNull)
+  rollId String?
+  roll   Roll?   @relation(fields: [rollId], references: [id], onDelete: SetNull)
 
-  note            String?
-  creatorId       String?
-  creator         User?        @relation("CreatorMovements", fields: [creatorId], references: [id])
-  organizationId  String
-  organization    Organization @relation(fields: [organizationId], references: [id])
-  createdAt       DateTime     @default(now())
+  // Bir birlik tannarxi shu harakat paytida (kirim narxi, ishlab chiqarish tannarxi, sotuv tannarxi)
+  unitCost Decimal? @db.Decimal(15, 2)
+  // Ishlab chiqarishdagi ishbay haq — keyin mahsulot narxi o'zgarsa ham tarix buzilmaydi
+  unitWage Decimal? @db.Decimal(15, 2)
+
+  // Kirim qaysi ta'minotchidan
+  supplierId String?
+  supplier   Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  // Sotuv yoki sotuvni bekor qilish harakati
+  saleId String?
+  sale   Sale?   @relation(fields: [saleId], references: [id], onDelete: SetNull)
+
+  note           String?
+  creatorId      String?
+  creator        User?        @relation("CreatorMovements", fields: [creatorId], references: [id], onDelete: SetNull)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime     @default(now())
 
   @@index([organizationId])
   @@index([organizationId, type])
   @@index([organizationId, createdAt])
+  @@index([supplierId])
+  @@index([saleId])
 }
 
 // 8. Mato Rulonlari (Tikuv sehi uchun maxsus)
 model Roll {
-  id             String       @id @default(cuid())
-  productId      String
-  product        Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
-  warehouseId    String
-  warehouse      Warehouse    @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  id          String    @id @default(cuid())
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
 
-  initialWeight  Float
-  currentWeight  Float
-  status         RollStatus   @default(AVAILABLE)
+  initialWeight Float
+  currentWeight Float
+  status        RollStatus @default(AVAILABLE)
 
-  movements      StockMovement[]
+  movements StockMovement[]
 
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -192,31 +221,35 @@ enum RollStatus {
   FINISHED
 }
 
-// 9. Mijozlar (Point 5 uchun)
+// 9. Mijozlar
 model Customer {
-  id             String       @id @default(cuid())
-  name           String
-  phone          String?
-  debt           Decimal      @default(0) @db.Decimal(15, 2)
+  id    String  @id @default(cuid())
+  name  String
+  phone String?
+  // Musbat — mijoz bizdan qarz; manfiy — mijozning avansi (bekor qilingan sotuvdan keyin)
+  debt  Decimal @default(0) @db.Decimal(15, 2)
 
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   sales          Sale[]
   debtPayments   DebtPayment[]
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   @@index([organizationId])
 }
 
 // 9b. Qarz to'lovlari — mijoz qarzini yopgani auditi
 model DebtPayment {
-  id             String       @id @default(cuid())
-  amount         Decimal      @db.Decimal(15, 2)
-  note           String?
+  id     String  @id @default(cuid())
+  amount Decimal @db.Decimal(15, 2)
+  note   String?
 
-  customerId     String
-  customer       Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  createdById String?
+  createdBy   User?   @relation("DebtPaymentCreator", fields: [createdById], references: [id], onDelete: SetNull)
 
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -227,37 +260,90 @@ model DebtPayment {
   @@index([customerId])
 }
 
-// 10. Sotuvlar (Point 5 uchun)
+// 10. Ta'minotchilar — xomashyo kimdan olinadi va ularga qancha qarzmiz
+model Supplier {
+  id    String  @id @default(cuid())
+  name  String
+  phone String?
+  note  String?
+  // Biz ta'minotchiga qarzmiz (musbat)
+  debt  Decimal @default(0) @db.Decimal(15, 2)
+
+  organizationId String
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  movements      StockMovement[]
+  payments       SupplierPayment[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([organizationId])
+}
+
+model SupplierPayment {
+  id     String  @id @default(cuid())
+  amount Decimal @db.Decimal(15, 2)
+  note   String?
+
+  supplierId String
+  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  createdById String?
+  createdBy   User?   @relation("SupplierPaymentCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+  @@index([organizationId, createdAt])
+  @@index([supplierId])
+}
+
+// 11. Sotuvlar
 model Sale {
-  id              String       @id @default(cuid())
-  totalAmount     Decimal      @db.Decimal(15, 2)
-  paidAmount      Decimal      @db.Decimal(15, 2)
-  paymentType     PaymentType  @default(CASH)
+  id          String      @id @default(cuid())
+  totalAmount Decimal     @db.Decimal(15, 2)
+  paidAmount  Decimal     @db.Decimal(15, 2)
+  paymentType PaymentType @default(CASH)
+  status      SaleStatus  @default(ACTIVE)
 
-  customerId      String?
-  customer        Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
 
-  items           SaleItem[]
+  // Mahsulot qaysi ombordan chiqdi — bekor qilinganda shu yerga qaytadi
+  warehouseId String?
+  warehouse   Warehouse? @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
 
-  organizationId  String
-  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdAt       DateTime     @default(now())
+  items     SaleItem[]
+  movements StockMovement[]
+
+  createdById String?
+  createdBy   User?   @relation("SaleCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  cancelledAt   DateTime?
+  cancelReason  String?
+  cancelledById String?
+  cancelledBy   User?     @relation("SaleCanceller", fields: [cancelledById], references: [id], onDelete: SetNull)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
 
   @@index([organizationId])
   @@index([organizationId, createdAt])
 }
 
 model SaleItem {
-  id             String   @id @default(cuid())
-  saleId         String
-  sale           Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  
-  productId      String
-  product        Product  @relation(fields: [productId], references: [id])
-  
-  quantity       Float
-  price          Decimal  @db.Decimal(15, 2) // Sotilgan narxi
-  costPrice      Decimal  @db.Decimal(15, 2) // O'sha vaqtdagi tannarxi
+  id     String @id @default(cuid())
+  saleId String
+  sale   Sale   @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  quantity  Float
+  price     Decimal @db.Decimal(15, 2) // Sotilgan narxi (bir birlik)
+  costPrice Decimal @db.Decimal(15, 2) // O'sha vaqtdagi tannarxi (bir birlik)
 }
 
 enum PaymentType {
@@ -266,33 +352,45 @@ enum PaymentType {
   DEBT
 }
 
-// 11. Xarajatlar (Point 2 uchun)
-model Expense {
-  id              String       @id @default(cuid())
-  amount          Decimal      @db.Decimal(15, 2)
-  category        String
-  note            String?
+enum SaleStatus {
+  ACTIVE
+  CANCELLED
+}
 
-  organizationId  String
-  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdAt       DateTime     @default(now())
+// 12. Xarajatlar (operatsion: ijara, svet, transport...). Xomashyo xaridi bu yerga
+// yozilmaydi — u tannarx orqali hisobotga tushadi.
+model Expense {
+  id       String  @id @default(cuid())
+  amount   Decimal @db.Decimal(15, 2)
+  category String
+  note     String?
+
+  createdById String?
+  createdBy   User?   @relation("ExpenseCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
 
   @@index([organizationId])
 }
 
-// 12. Xodimlar Bonus/Jarima (Point 3 uchun)
+// 13. Xodimlar Bonus/Jarima
 model StaffAdjustment {
-  id              String         @id @default(cuid())
-  amount          Decimal        @db.Decimal(15, 2)
-  type            AdjustmentType
-  note            String?
+  id     String         @id @default(cuid())
+  amount Decimal        @db.Decimal(15, 2)
+  type   AdjustmentType
+  note   String?
 
-  userId          String
-  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation("StaffAdjustments", fields: [userId], references: [id], onDelete: Cascade)
 
-  organizationId  String
-  organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdAt       DateTime       @default(now())
+  createdById String?
+  createdBy   User?   @relation("AdjustmentCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
 
   @@index([organizationId])
   @@index([userId])
@@ -311,4 +409,13 @@ enum MovementType {
   ADJUSTMENT
   WASTAGE
   REVISION
+  RETURN
+}
+
+// 14. Kirish va ro'yxatdan o'tish urinishlarini cheklash (serverless'da xotira
+// umumiy emas, shuning uchun hisoblagich bazada)
+model RateLimit {
+  key     String   @id
+  count   Int      @default(0)
+  resetAt DateTime
 }
