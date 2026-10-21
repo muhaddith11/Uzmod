@@ -1,4 +1,5 @@
 import { auth } from "@/auth"
+import { ActionError } from "@/lib/action"
 
 export type Role = 'ADMIN' | 'MANAGER' | 'WORKER'
 
@@ -13,10 +14,10 @@ export type SessionUser = {
  */
 export async function getSessionUser(): Promise<SessionUser> {
   const session = await auth()
-  if (!session?.user) throw new Error("Avtorizatsiya kerak")
+  if (!session?.user) throw new ActionError("Avtorizatsiya kerak")
 
   const user = session.user as any
-  if (!user.organizationId) throw new Error("Tashkilot aniqlanmadi")
+  if (!user.organizationId) throw new ActionError("Tashkilot aniqlanmadi")
 
   return {
     id: user.id,
@@ -38,7 +39,7 @@ export async function getOrgId(): Promise<string> {
 export async function requireRole(...allowed: Role[]): Promise<SessionUser> {
   const user = await getSessionUser()
   if (!allowed.includes(user.role)) {
-    throw new Error("Bu amal uchun ruxsatingiz yo'q")
+    throw new ActionError("Bu amal uchun ruxsatingiz yo'q")
   }
   return user
 }

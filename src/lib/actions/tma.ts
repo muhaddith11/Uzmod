@@ -2,19 +2,20 @@
 
 import { validateTelegramWebAppData } from "@/lib/telegram";
 import { prisma } from "@/lib/prisma";
+import { ActionError } from "@/lib/action"
 
 // initData'ni tekshiradi va foydalanuvchi ulanganini aniqlaydi (ko'rsatish uchun).
 // Haqiqiy sessiya client'da signIn("telegram") orqali yaratiladi (auth.ts).
 export async function authenticateTMA(initData: string) {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
-  if (!botToken) throw new Error("Bot token sozlanmagan");
+  if (!botToken) throw new ActionError("Bot token sozlanmagan");
 
   const isValid = validateTelegramWebAppData(initData, botToken);
-  if (!isValid) throw new Error("Haqiqiy bo'lmagan Telegram ma'lumotlari");
+  if (!isValid) throw new ActionError("Haqiqiy bo'lmagan Telegram ma'lumotlari");
 
   const urlParams = new URLSearchParams(initData);
   const userJson = urlParams.get('user');
-  if (!userJson) throw new Error("Foydalanuvchi ma'lumotlari topilmadi");
+  if (!userJson) throw new ActionError("Foydalanuvchi ma'lumotlari topilmadi");
 
   const tgUser = JSON.parse(userJson);
   const telegramId = tgUser.id.toString();

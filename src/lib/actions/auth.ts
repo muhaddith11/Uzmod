@@ -3,24 +3,25 @@
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
+import { action, ActionError } from "@/lib/action"
 
-export async function register(formData: FormData) {
+export const register = action(async function register(formData: FormData) {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
   const orgName = formData.get("orgName") as string;
   const name = formData.get("name") as string;
 
   if (!email || !password || !orgName || !name) {
-    throw new Error("Barcha maydonlarni to'ldiring");
+    throw new ActionError("Barcha maydonlarni to'ldiring");
   }
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   if (!emailRegex.test(email)) {
-    throw new Error("Email manzil noto'g'ri formatda")
+    throw new ActionError("Email manzil noto'g'ri formatda")
   }
 
   if (password.length < 6) {
-    throw new Error("Parol kamida 6 ta belgidan iborat bo'lishi kerak")
+    throw new ActionError("Parol kamida 6 ta belgidan iborat bo'lishi kerak")
   }
 
   const hashedPassword = await bcrypt.hash(password, 10);
@@ -53,10 +54,10 @@ export async function register(formData: FormData) {
     });
   } catch (error: any) {
     if (error.code === 'P2002') {
-      throw new Error("Ushbu email bilan foydalanuvchi mavjud");
+      throw new ActionError("Ushbu email bilan foydalanuvchi mavjud");
     }
     throw error;
   }
 
   redirect("/login");
-}
+})

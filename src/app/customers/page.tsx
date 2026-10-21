@@ -1,4 +1,5 @@
 import { getCustomers, createCustomer, deleteCustomer, repayDebt } from "@/lib/actions/customers"
+import { ActionForm } from "@/components/ui/action-form"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
@@ -30,7 +31,7 @@ export default async function CustomersPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <form action={createCustomer} className="space-y-4">
+            <ActionForm action={createCustomer} className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-bold text-gray-700">F.I.O</label>
                 <Input name="name" placeholder="Masalan: Aziz Rahimov" required className="bg-gray-50 border-gray-100 h-11" />
@@ -42,7 +43,7 @@ export default async function CustomersPage() {
               <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 font-bold h-11 text-white">
                 Mijozni qo'shish
               </Button>
-            </form>
+            </ActionForm>
           </CardContent>
         </Card>
 
@@ -99,7 +100,7 @@ export default async function CustomersPage() {
                               <DialogHeader>
                                 <DialogTitle>{c.name} — qarz to'lovi</DialogTitle>
                               </DialogHeader>
-                              <form action={repayDebt} className="space-y-4 pt-4">
+                              <ActionForm action={repayDebt} className="space-y-4 pt-4">
                                 <input type="hidden" name="customerId" value={c.id} />
                                 <div className="rounded-xl bg-rose-50 p-4 text-sm">
                                   <span className="text-gray-600">Mavjud qarz: </span>
@@ -134,12 +135,12 @@ export default async function CustomersPage() {
                                 >
                                   To'lovni tasdiqlash
                                 </Button>
-                              </form>
+                              </ActionForm>
                             </DialogContent>
                           </Dialog>
                         )}
                         <DeleteButton
-                          action={async () => { 'use server'; await deleteCustomer(c.id) }}
+                          action={async () => { 'use server'; return deleteCustomer(c.id) }}
                           confirmText={`"${c.name}" mijozini o'chirasizmi?`}
                         />
                       </div>

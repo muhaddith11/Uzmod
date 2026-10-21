@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma"
 import { getOrgId, requireRole } from "@/lib/session"
 import { revalidatePath } from "next/cache"
+import { action, ActionError } from "@/lib/action"
 
 export async function getCustomers(limit = 200) {
   const orgId = await getOrgId()
@@ -13,12 +14,12 @@ export async function getCustomers(limit = 200) {
   })
 }
 
-export async function createCustomer(formData: FormData) {
+export const createCustomer = action(async function createCustomer(formData: FormData) {
   const { organizationId: orgId } = await requireRole('ADMIN', 'MANAGER')
   const name = formData.get("name") as string
   const phone = formData.get("phone") as string
 
-  if (!name?.trim()) throw new Error("Ism majburiy")
+  if (!name?.trim()) throw new ActionError("Ism majburiy")
 
   await prisma.customer.create({
     data: {
@@ -28,21 +29,21 @@ export async function createCustomer(formData: FormData) {
     }
   })
   revalidatePath("/customers")
-}
+})
 
 /**
  * Mijoz qarzini to'lashni qayd etadi.
  * Qarz faqat shu yerda kamayadi — sotuvda (createSale) esa oshadi.
  */
-export async function repayDebt(formData: FormData) {
+export const repayDebt = action(async function repayDebt(formData: FormData) {
   const { organizationId: orgId } = await requireRole('ADMIN', 'MANAGER')
   const customerId = formData.get("customerId") as string
   const amount = parseFloat(formData.get("amount") as string)
   const note = formData.get("note") as string
 
-  if (!customerId) throw new Error("Mijoz tanlanmagan")
+  if (!customerId) throw new ActionError("Mijoz tanlanmagan")
   if (isNaN(amount) || amount <= 0) {
-    throw new Error("To'lov summasi 0 dan katta bo'lishi kerak")
+    throw new ActionError("To'lov summasi 0 dan katta bo'lishi kerak")
   }
 
   await prisma.$transaction(async (tx) => {
@@ -52,12 +53,12 @@ export async function repayDebt(formData: FormData) {
     const customer = await tx.customer.findFirst({
       where: { id: customerId, organizationId: orgId }
     })
-    if (!customer) throw new Error("Mijoz topilmadi yoki ruxsat yo'q")
+    if (!customer) throw new ActionError("Mijoz topilmadi yoki ruxsat yo'q")
 
     const currentDebt = Number(customer.debt)
-    if (currentDebt <= 0) throw new Error("Bu mijozda qarz yo'q")
+    if (currentDebt <= 0) throw new ActionError("Bu mijozda qarz yo'q")
     if (amount > currentDebt) {
-      throw new Error(
+      throw new ActionError(
         `To'lov qarzdan katta. Mijozning qarzi: ${new Intl.NumberFormat('uz-UZ').format(currentDebt)} so'm`
       )
     }
@@ -82,7 +83,7 @@ export async function repayDebt(formData: FormData) {
   revalidatePath("/customers")
   revalidatePath("/reports")
   revalidatePath("/finance")
-}
+})
 
 export async function getDebtPayments(customerId?: string, limit = 100) {
   const orgId = await getOrgId()
@@ -97,16 +98,16 @@ export async function getDebtPayments(customerId?: string, limit = 100) {
   })
 }
 
-export async function deleteCustomer(id: string) {
+export const deleteCustomer = action(async function deleteCustomer(id: string) {
   const { organizationId: orgId } = await requireRole('ADMIN', 'MANAGER')
 
   const customer = await prisma.customer.findFirst({
     where: { id, organizationId: orgId }
   })
-  if (!customer) throw new Error("Mijoz topilmadi")
+  if (!customer) throw new ActionError("Mijoz topilmadi")
 
   if (Number(customer.debt) > 0) {
-    throw new Error(
+    throw new ActionError(
       `Mijozda ${new Intl.NumberFormat('uz-UZ').format(Number(customer.debt))} so'm qarz bor. Avval qarzni yoping.`
     )
   }
@@ -115,4 +116,4 @@ export async function deleteCustomer(id: string) {
     where: { id, organizationId: orgId }
   })
   revalidatePath("/customers")
-}
+})

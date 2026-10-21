@@ -3,23 +3,24 @@
 import { prisma } from "@/lib/prisma"
 import { requireRole } from "@/lib/session"
 import { revalidatePath } from "next/cache"
+import { action, ActionError } from "@/lib/action"
 
-export async function stockIn(formData: FormData) {
+export const stockIn = action(async function stockIn(formData: FormData) {
   const { organizationId: orgId } = await requireRole('ADMIN', 'MANAGER')
   const productId = formData.get("productId") as string
   const warehouseId = formData.get("warehouseId") as string
   const quantity = parseFloat(formData.get("quantity") as string)
   const note = formData.get("note") as string
 
-  if (!productId || !warehouseId) throw new Error("Ma'lumotlar to'liq emas")
-  if (!quantity || quantity <= 0) throw new Error("Miqdor 0 dan katta bo'lishi kerak")
+  if (!productId || !warehouseId) throw new ActionError("Ma'lumotlar to'liq emas")
+  if (!quantity || quantity <= 0) throw new ActionError("Miqdor 0 dan katta bo'lishi kerak")
 
   const [product, warehouse] = await Promise.all([
     prisma.product.findFirst({ where: { id: productId, organizationId: orgId } }),
     prisma.warehouse.findFirst({ where: { id: warehouseId, organizationId: orgId } })
   ])
-  if (!product) throw new Error("Mahsulot topilmadi yoki ruxsat yo'q")
-  if (!warehouse) throw new Error("Ombor topilmadi yoki ruxsat yo'q")
+  if (!product) throw new ActionError("Mahsulot topilmadi yoki ruxsat yo'q")
+  if (!warehouse) throw new ActionError("Ombor topilmadi yoki ruxsat yo'q")
 
   await prisma.$transaction(async (tx) => {
     // 1. StockLevel-ni yangilash yoki yaratish
@@ -55,9 +56,9 @@ export async function stockIn(formData: FormData) {
 
   revalidatePath("/inventory")
   revalidatePath("/movements")
-}
+})
 
-export async function stockAdjust(formData: FormData) {
+export const stockAdjust = action(async function stockAdjust(formData: FormData) {
   // Brak/inventarizatsiya qoldiqni o'zgartiradi — faqat rahbariyat huquqi
   const { organizationId: orgId } = await requireRole('ADMIN', 'MANAGER')
   const productId = formData.get("productId") as string
@@ -67,15 +68,15 @@ export async function stockAdjust(formData: FormData) {
   const note = formData.get("note") as string
 
   if (!productId || !warehouseId || isNaN(quantity) || !type || !note) {
-    throw new Error("Ma'lumotlar to'liq emas. Izoh qoldirish majburiy!")
+    throw new ActionError("Ma'lumotlar to'liq emas. Izoh qoldirish majburiy!")
   }
 
   const [adjProduct, adjWarehouse] = await Promise.all([
     prisma.product.findFirst({ where: { id: productId, organizationId: orgId } }),
     prisma.warehouse.findFirst({ where: { id: warehouseId, organizationId: orgId } })
   ])
-  if (!adjProduct) throw new Error("Mahsulot topilmadi yoki ruxsat yo'q")
-  if (!adjWarehouse) throw new Error("Ombor topilmadi yoki ruxsat yo'q")
+  if (!adjProduct) throw new ActionError("Mahsulot topilmadi yoki ruxsat yo'q")
+  if (!adjWarehouse) throw new ActionError("Ombor topilmadi yoki ruxsat yo'q")
 
   await prisma.$transaction(async (tx) => {
     // Serializable isolation: parallel so'rovlar qoldiqni manfiyga tushirolmaydi
@@ -100,12 +101,12 @@ export async function stockAdjust(formData: FormData) {
     } else {
       // WASTAGE yoki ADJUSTMENT holatida 'quantity' - bu o'zgarish miqdori (odatda manfiy)
       if (!currentStock || currentStock.quantity === 0) {
-        throw new Error("Omborda mahsulot yo'q")
+        throw new ActionError("Omborda mahsulot yo'q")
       }
 
       const newQuantity = (currentStock?.quantity || 0) + quantity
       if (newQuantity < 0) {
-        throw new Error(
+        throw new ActionError(
           `Omborda yetarli mahsulot yo'q. Mavjud: ${currentStock?.quantity ?? 0}`
         )
       }
@@ -138,4 +139,4 @@ export async function stockAdjust(formData: FormData) {
 
   revalidatePath("/inventory")
   revalidatePath("/movements")
-}
+})

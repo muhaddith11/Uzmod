@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { ActionForm } from "@/components/ui/action-form"
 import { getProducts } from "@/lib/actions/products"
 import { addBOMItem, deleteBOMItem } from "@/lib/actions/bom"
 import { auth } from "@/auth"
@@ -55,7 +56,7 @@ export default async function ProductDetailsPage({ params }: { params: { id: str
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <form action={addBOMItem} className="space-y-4">
+              <ActionForm action={addBOMItem} className="space-y-4">
                 <input type="hidden" name="productId" value={product.id} />
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-gray-700">Tarkibiy qism (Xomashyo)</label>
@@ -71,7 +72,7 @@ export default async function ProductDetailsPage({ params }: { params: { id: str
                 <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 font-bold h-11">
                   Qabul qilish
                 </Button>
-              </form>
+              </ActionForm>
             </CardContent>
           </Card>
 
@@ -98,7 +99,7 @@ export default async function ProductDetailsPage({ params }: { params: { id: str
                       <TableCell className="py-4 px-6 font-black text-indigo-600">{item.quantityNeeded} {item.material.unit}</TableCell>
                       <TableCell className="py-4 px-6 text-right">
                         <DeleteButton
-                          action={async () => { 'use server'; await deleteBOMItem(item.id) }}
+                          action={async () => { 'use server'; return deleteBOMItem(item.id) }}
                           confirmText={`"${item.material.name}" reseptdan o'chirasizmi?`}
                           className="text-red-400 hover:text-red-600 hover:bg-red-50"
                         />

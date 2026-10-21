@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma"
 import { getOrgId, requireRole } from "@/lib/session"
 import { revalidatePath } from "next/cache"
+import { action, ActionError } from "@/lib/action"
 
 export async function getProducts() {
   const orgId = await getOrgId()
@@ -13,7 +14,7 @@ export async function getProducts() {
   })
 }
 
-export async function createProduct(formData: FormData) {
+export const createProduct = action(async function createProduct(formData: FormData) {
   const { organizationId: orgId } = await requireRole('ADMIN', 'MANAGER')
   const name = formData.get("name") as string
   const sku = formData.get("sku") as string
@@ -26,12 +27,12 @@ export async function createProduct(formData: FormData) {
   // Rulon hisobi faqat xomashyo uchun ma'noga ega
   const isRollTracked = isRaw && formData.get("isRollTracked") === "on"
 
-  if (!name?.trim()) throw new Error("Mahsulot nomi majburiy")
+  if (!name?.trim()) throw new ActionError("Mahsulot nomi majburiy")
   if ([price, costPrice, productionWage, minStockLevel].some(n => isNaN(n))) {
-    throw new Error("Narx va miqdor to'g'ri son bo'lishi kerak")
+    throw new ActionError("Narx va miqdor to'g'ri son bo'lishi kerak")
   }
   if (price < 0 || costPrice < 0 || productionWage < 0 || minStockLevel < 0) {
-    throw new Error("Narx va miqdor manfiy bo'lishi mumkin emas")
+    throw new ActionError("Narx va miqdor manfiy bo'lishi mumkin emas")
   }
 
   await prisma.product.create({
@@ -49,15 +50,15 @@ export async function createProduct(formData: FormData) {
     }
   })
   revalidatePath("/inventory")
-}
+})
 
-export async function deleteProduct(id: string) {
+export const deleteProduct = action(async function deleteProduct(id: string) {
   const { organizationId: orgId } = await requireRole('ADMIN', 'MANAGER')
 
   const product = await prisma.product.findFirst({
     where: { id, organizationId: orgId }
   })
-  if (!product) throw new Error("Mahsulot topilmadi yoki ruxsat yo'q")
+  if (!product) throw new ActionError("Mahsulot topilmadi yoki ruxsat yo'q")
 
   // StockMovement va SaleItem — Restrict, ya'ni tarixi bor mahsulotni Postgres
   // o'chirtirmaydi. Xom FK xatosi o'rniga tushunarli xabar beramiz.
@@ -66,7 +67,7 @@ export async function deleteProduct(id: string) {
     prisma.saleItem.count({ where: { productId: id } }),
   ])
   if (movements > 0 || saleItems > 0) {
-    throw new Error(
+    throw new ActionError(
       "Bu mahsulotda harakat yoki sotuv tarixi bor, shuning uchun o'chirib bo'lmaydi. " +
       "Tarixni saqlab qolish uchun uni o'chirish o'rniga ishlatishni to'xtating."
     )
@@ -76,4 +77,4 @@ export async function deleteProduct(id: string) {
     where: { id, organizationId: orgId }
   })
   revalidatePath("/inventory")
-}
+})

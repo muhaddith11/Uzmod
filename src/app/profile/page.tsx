@@ -1,4 +1,5 @@
 import { auth } from "@/auth"
+import { ActionForm } from "@/components/ui/action-form"
 import { prisma } from "@/lib/prisma"
 import { startTelegramLink } from "@/lib/actions/profile"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
@@ -64,14 +65,14 @@ export default async function ProfilePage() {
                   <p className="text-sm text-gray-500">ID: {user.telegramId}</p>
                 </div>
                 <p className="text-center text-xs text-gray-400 italic">Endi Telegram bot orqali tizimga kira olasiz.</p>
-                <form action={startTelegramLink}>
+                <ActionForm action={startTelegramLink}>
                   <Button type="submit" variant="outline" className="h-9 text-xs">
                     Boshqa Telegram hisobiga ulash
                   </Button>
-                </form>
+                </ActionForm>
               </div>
             ) : (
-              <form action={startTelegramLink} className="space-y-4">
+              <ActionForm action={startTelegramLink} className="space-y-4">
                 <div className="p-4 bg-orange-50 border border-orange-100 rounded-xl text-sm text-orange-700">
                   Tugmani bosing — Telegram'da botimiz ochiladi. U yerda <b>Start</b> ni bosing,
                   hisobingiz avtomatik ulanadi. Havola 15 daqiqa amal qiladi. So'ng bu sahifani yangilang.
@@ -79,7 +80,7 @@ export default async function ProfilePage() {
                 <Button type="submit" className="w-full bg-blue-600 h-12 font-bold transition-all hover:bg-blue-700">
                   Telegram'ni ulash
                 </Button>
-              </form>
+              </ActionForm>
             )}
           </CardContent>
         </Card>

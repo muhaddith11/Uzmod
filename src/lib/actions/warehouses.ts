@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma"
 import { getOrgId, requireRole } from "@/lib/session"
 import { revalidatePath } from "next/cache"
+import { action, ActionError } from "@/lib/action"
 
 export async function getWarehouses() {
   const orgId = await getOrgId()
@@ -12,12 +13,12 @@ export async function getWarehouses() {
   })
 }
 
-export async function createWarehouse(formData: FormData) {
+export const createWarehouse = action(async function createWarehouse(formData: FormData) {
   const { organizationId: orgId } = await requireRole('ADMIN')
   const name = formData.get("name") as string
   const address = formData.get("address") as string
 
-  if (!name?.trim()) throw new Error("Ombor nomi majburiy")
+  if (!name?.trim()) throw new ActionError("Ombor nomi majburiy")
 
   await prisma.warehouse.create({
     data: {
@@ -27,23 +28,23 @@ export async function createWarehouse(formData: FormData) {
     }
   })
   revalidatePath("/warehouses")
-}
+})
 
-export async function deleteWarehouse(id: string) {
+export const deleteWarehouse = action(async function deleteWarehouse(id: string) {
   const { organizationId: orgId } = await requireRole('ADMIN')
 
   // Ombor shu tashkilotga tegishligini tekshirish
   const warehouse = await prisma.warehouse.findFirst({
     where: { id, organizationId: orgId }
   })
-  if (!warehouse) throw new Error("Ombor topilmadi yoki ruxsat yo'q")
+  if (!warehouse) throw new ActionError("Ombor topilmadi yoki ruxsat yo'q")
 
   // Ichida stock borligini tekshirish
   const stockWithGoods = await prisma.stockLevel.findFirst({
     where: { warehouseId: id, quantity: { gt: 0 } }
   })
   if (stockWithGoods) {
-    throw new Error("Omborda mahsulot bor. Avval omborni bo'shatib, so'ng o'chiring.")
+    throw new ActionError("Omborda mahsulot bor. Avval omborni bo'shatib, so'ng o'chiring.")
   }
 
   // Rulonlar Roll.warehouse orqali cascade o'chadi — vazni qolganlarini yo'qotib
@@ -52,11 +53,11 @@ export async function deleteWarehouse(id: string) {
     where: { warehouseId: id, status: { not: 'FINISHED' } }
   })
   if (rollsLeft) {
-    throw new Error("Omborda tugallanmagan rulonlar bor. Avval ularni ko'chiring yoki yoping.")
+    throw new ActionError("Omborda tugallanmagan rulonlar bor. Avval ularni ko'chiring yoki yoping.")
   }
 
   await prisma.warehouse.delete({
     where: { id, organizationId: orgId }
   })
   revalidatePath("/warehouses")
-}
+})

@@ -1,4 +1,5 @@
-import { getWorkers, getStaff, addAdjustment, deleteAdjustment } from "@/lib/actions/workers"
+import { getWorkers, getStaff, createEmployee, addAdjustment, deleteAdjustment } from "@/lib/actions/workers"
+import { ActionForm } from "@/components/ui/action-form"
 import { getSessionUser } from "@/lib/session"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -6,7 +7,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { DeleteButton } from "@/components/ui/delete-button"
-import { EmployeeForm } from "@/components/workers/EmployeeForm"
 import { UserIcon, BanknoteIcon, TrendingUpIcon, TrendingDownIcon, PlusIcon, UserPlusIcon } from "lucide-react"
 
 const ROLE_LABELS: Record<string, string> = { ADMIN: 'Admin', MANAGER: 'Menejer', WORKER: 'Ishchi' }
@@ -37,7 +37,34 @@ export default async function WorkersPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            <EmployeeForm canAddManager={me.role === 'ADMIN'} />
+            <ActionForm
+              action={createEmployee}
+              successMessage="Xodim qo'shildi. Endi u email va parol bilan kira oladi."
+              className="space-y-4"
+            >
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-700">Ism-sharif</label>
+                <Input name="name" placeholder="Masalan: Anvar Tikuvchi" required className="bg-gray-50 h-11" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-700">Email (login)</label>
+                <Input name="email" type="email" placeholder="ishchi@example.com" required className="bg-gray-50 h-11" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-700">Parol</label>
+                <Input name="password" type="text" minLength={6} placeholder="Kamida 6 ta belgi" required className="bg-gray-50 h-11" />
+              </div>
+              <div className="space-y-2 text-black">
+                <label className="text-sm font-bold text-gray-700">Lavozim</label>
+                <select name="role" required className="w-full p-3 border rounded-xl bg-gray-50">
+                  <option value="WORKER">Ishchi (Tikuvchi)</option>
+                  {me.role === 'ADMIN' && <option value="MANAGER">Menejer</option>}
+                </select>
+              </div>
+              <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 font-bold h-11">
+                Xodim qo'shish
+              </Button>
+            </ActionForm>
             <div className="space-y-2 border-t border-gray-100 pt-4">
               <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Jamoa ({staff.length})</p>
               {staff.map(s => (
@@ -67,7 +94,7 @@ export default async function WorkersPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <form action={addAdjustment} className="space-y-4">
+            <ActionForm action={addAdjustment} className="space-y-4">
               <div className="space-y-2 text-black">
                 <label className="text-sm font-bold text-gray-700">Xodim</label>
                 <select name="userId" required className="w-full p-3 border rounded-xl bg-gray-50">
@@ -93,7 +120,7 @@ export default async function WorkersPage() {
               <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 font-bold h-11">
                 Tasdiqlash
               </Button>
-            </form>
+            </ActionForm>
           </CardContent>
         </Card>
         </div>
@@ -168,7 +195,7 @@ export default async function WorkersPage() {
                                            {Number(a.amount) > 0 ? "+" : ""}{new Intl.NumberFormat('uz-UZ').format(Number(a.amount))} s.
                                         </span>
                                         <DeleteButton
-                                          action={async () => { 'use server'; await deleteAdjustment(a.id) }}
+                                          action={async () => { 'use server'; return deleteAdjustment(a.id) }}
                                           confirmText="Bu tartibni o'chirasizmi?"
                                           className="h-6 w-6 text-gray-300 hover:text-red-500"
                                           iconClassName="w-3 h-3"

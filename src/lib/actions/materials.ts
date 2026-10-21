@@ -3,10 +3,11 @@
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/auth'
 import { revalidatePath } from 'next/cache'
+import { ActionError } from "@/lib/action"
 
 async function getOrgId() {
   const session = await auth()
-  if (!session?.user) throw new Error("Avtorizatsiya kerak")
+  if (!session?.user) throw new ActionError("Avtorizatsiya kerak")
   return (session.user as any).organizationId
 }
 
@@ -27,8 +28,8 @@ export async function createMaterial(formData: FormData) {
   const unit = formData.get('unit') as string
   const price = parseFloat(formData.get('price') as string || "0")
 
-  if (!name?.trim()) throw new Error("Xomashyo nomini kiriting")
-  if (isNaN(price) || price < 0) throw new Error("Narx noto'g'ri kiritilgan")
+  if (!name?.trim()) throw new ActionError("Xomashyo nomini kiriting")
+  if (isNaN(price) || price < 0) throw new ActionError("Narx noto'g'ri kiritilgan")
 
   await prisma.product.create({
     data: {

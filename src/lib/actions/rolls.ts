@@ -3,32 +3,33 @@
 import { prisma } from "@/lib/prisma"
 import { getOrgId } from "@/lib/session"
 import { revalidatePath } from "next/cache"
+import { action, ActionError } from "@/lib/action"
 
 // Rulon qabuli — ishchi ham bajara oladi (sexda kundalik ish)
-export async function createRolls(formData: FormData) {
+export const createRolls = action(async function createRolls(formData: FormData) {
   const orgId = await getOrgId()
   const productId = formData.get("productId") as string
   const warehouseId = formData.get("warehouseId") as string
   const weightsString = formData.get("weights") as string // "25.4, 26.1, 24.8"
   
   if (!productId || !warehouseId || !weightsString) {
-    throw new Error("Barcha ma'lumotlarni kiriting")
+    throw new ActionError("Barcha ma'lumotlarni kiriting")
   }
 
   const [product, warehouse] = await Promise.all([
     prisma.product.findFirst({ where: { id: productId, organizationId: orgId } }),
     prisma.warehouse.findFirst({ where: { id: warehouseId, organizationId: orgId } })
   ])
-  if (!product) throw new Error("Mahsulot topilmadi yoki ruxsat yo'q")
-  if (!warehouse) throw new Error("Ombor topilmadi yoki ruxsat yo'q")
+  if (!product) throw new ActionError("Mahsulot topilmadi yoki ruxsat yo'q")
+  if (!warehouse) throw new ActionError("Ombor topilmadi yoki ruxsat yo'q")
 
   const parsed = weightsString.split(/[,\s]+/).filter(w => w.length > 0).map(w => parseFloat(w))
   if (parsed.some(w => isNaN(w) || w <= 0)) {
-    throw new Error("Har bir rulon vazni 0 dan katta son bo'lishi kerak")
+    throw new ActionError("Har bir rulon vazni 0 dan katta son bo'lishi kerak")
   }
   const weights = parsed
   if (weights.length === 0) {
-    throw new Error("Kamida bitta rulon vaznini kiriting")
+    throw new ActionError("Kamida bitta rulon vaznini kiriting")
   }
   const totalWeight = weights.reduce((acc, w) => acc + w, 0)
 
@@ -78,7 +79,7 @@ export async function createRolls(formData: FormData) {
   })
 
   revalidatePath("/inventory")
-}
+})
 
 export async function getRolls(productId?: string) {
   const orgId = await getOrgId()
@@ -138,14 +139,14 @@ export async function getRollOptionsForProduct(productId: string, warehouseId: s
 /**
  * Rulonni qo'lda yopish (masalan, qoldig'i brak bo'lib chiqsa).
  */
-export async function finishRoll(id: string) {
+export const finishRoll = action(async function finishRoll(id: string) {
   const orgId = await getOrgId()
 
   const roll = await prisma.roll.findFirst({
     where: { id, organizationId: orgId }
   })
-  if (!roll) throw new Error("Rulon topilmadi yoki ruxsat yo'q")
-  if (roll.status === 'FINISHED') throw new Error("Rulon allaqachon yopilgan")
+  if (!roll) throw new ActionError("Rulon topilmadi yoki ruxsat yo'q")
+  if (roll.status === 'FINISHED') throw new ActionError("Rulon allaqachon yopilgan")
 
   await prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SET TRANSACTION ISOLATION LEVEL SERIALIZABLE`
@@ -184,4 +185,4 @@ export async function finishRoll(id: string) {
 
   revalidatePath("/inventory")
   revalidatePath("/production")
-}
+})

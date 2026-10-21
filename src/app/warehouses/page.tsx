@@ -1,4 +1,5 @@
 import { getWarehouses, createWarehouse, deleteWarehouse } from "@/lib/actions/warehouses"
+import { ActionForm } from "@/components/ui/action-form"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
@@ -28,7 +29,7 @@ export default async function WarehousesPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <form action={createWarehouse} className="space-y-4">
+            <ActionForm action={createWarehouse} className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Ombor nomi</label>
                 <Input name="name" placeholder="Masalan: Asosiy ombor" required />
@@ -40,7 +41,7 @@ export default async function WarehousesPage() {
               <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700">
                 Saqlash
               </Button>
-            </form>
+            </ActionForm>
           </CardContent>
         </Card>
 
@@ -66,7 +67,7 @@ export default async function WarehousesPage() {
                     </TableCell>
                     <TableCell className="py-4 px-6 text-right">
                       <DeleteButton
-                        action={async () => { 'use server'; await deleteWarehouse(warehouse.id) }}
+                        action={async () => { 'use server'; return deleteWarehouse(warehouse.id) }}
                         confirmText={`"${warehouse.name}" omborini o'chirasizmi?`}
                         className="text-red-500 hover:text-red-700 hover:bg-red-50"
                       />

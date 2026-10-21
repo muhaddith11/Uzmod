@@ -3,9 +3,10 @@
 import { useTransition } from "react"
 import { Button } from "@/components/ui/button"
 import { Trash2Icon } from "lucide-react"
+import type { ActionResult } from "@/lib/action"
 
 interface DeleteButtonProps {
-  action: () => Promise<void>
+  action: () => Promise<ActionResult>
   confirmText?: string
   size?: "icon" | "sm" | "default"
   className?: string
@@ -24,7 +25,9 @@ export function DeleteButton({
   function handleClick() {
     if (!confirm(confirmText)) return
     startTransition(async () => {
-      await action()
+      const result = await action()
+      // Masalan: "Omborda mahsulot bor" — sababini ko'rsatamiz
+      if (result.error) alert(result.error)
     })
   }
 

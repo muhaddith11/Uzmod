@@ -4,10 +4,11 @@ import { prisma } from "@/lib/prisma"
 import { getOrgId, requireRole } from "@/lib/session"
 import { revalidatePath } from "next/cache"
 import type { PaymentType } from "@prisma/client"
+import { action, ActionError } from "@/lib/action"
 
 const PAYMENT_TYPES: PaymentType[] = ['CASH', 'CARD', 'DEBT']
 
-export async function createSale(formData: FormData) {
+export const createSale = action(async function createSale(formData: FormData) {
   const { organizationId: orgId } = await requireRole('ADMIN', 'MANAGER')
   const productId = formData.get("productId") as string
   const warehouseId = formData.get("warehouseId") as string
@@ -18,37 +19,37 @@ export async function createSale(formData: FormData) {
   const customerId = formData.get("customerId") as string
 
   if (!productId || !warehouseId || !totalAmount) {
-    throw new Error("Ma'lumotlar to'liq emas")
+    throw new ActionError("Ma'lumotlar to'liq emas")
   }
 
   if (!quantity || quantity <= 0) {
-    throw new Error("Miqdor 0 dan katta bo'lishi kerak")
+    throw new ActionError("Miqdor 0 dan katta bo'lishi kerak")
   }
 
   if (isNaN(paidAmount)) {
-    throw new Error("To'langan summa noto'g'ri kiritilgan")
+    throw new ActionError("To'langan summa noto'g'ri kiritilgan")
   }
 
   if (totalAmount < 0 || paidAmount < 0) {
-    throw new Error("Summa manfiy bo'lishi mumkin emas")
+    throw new ActionError("Summa manfiy bo'lishi mumkin emas")
   }
 
   if (paidAmount > totalAmount) {
-    throw new Error("To'langan summa jami summadan katta bo'lishi mumkin emas")
+    throw new ActionError("To'langan summa jami summadan katta bo'lishi mumkin emas")
   }
 
   if (!PAYMENT_TYPES.includes(paymentType)) {
-    throw new Error("Noto'g'ri to'lov turi")
+    throw new ActionError("Noto'g'ri to'lov turi")
   }
 
   if (paymentType === 'DEBT' && !customerId) {
-     throw new Error("Nasiya uchun mijozni tanlash majburiy")
+     throw new ActionError("Nasiya uchun mijozni tanlash majburiy")
   }
 
   // To'lanmagan qoldiq mijoz qarziga yoziladi. Mijozsiz bu pul hech qayerda
   // qolmasdi, hisobotda esa to'liq summa daromad bo'lib ko'rinardi.
   if (paidAmount < totalAmount && !customerId) {
-    throw new Error("Summa to'liq to'lanmadi: qolgan qismi qarzga yozilishi uchun mijozni tanlang")
+    throw new ActionError("Summa to'liq to'lanmadi: qolgan qismi qarzga yozilishi uchun mijozni tanlang")
   }
 
   await prisma.$transaction(async (tx) => {
@@ -60,19 +61,19 @@ export async function createSale(formData: FormData) {
       const customer = await tx.customer.findFirst({
         where: { id: customerId, organizationId: orgId }
       })
-      if (!customer) throw new Error("Mijoz topilmadi yoki ruxsat yo'q")
+      if (!customer) throw new ActionError("Mijoz topilmadi yoki ruxsat yo'q")
     }
 
     // Mahsulot va ombor shu tashkilotga tegishligini tekshirish
     const product = await tx.product.findFirst({
       where: { id: productId, organizationId: orgId }
     })
-    if (!product) throw new Error("Mahsulot topilmadi yoki ruxsat yo'q")
+    if (!product) throw new ActionError("Mahsulot topilmadi yoki ruxsat yo'q")
 
     const warehouse = await tx.warehouse.findFirst({
       where: { id: warehouseId, organizationId: orgId }
     })
-    if (!warehouse) throw new Error("Ombor topilmadi yoki ruxsat yo'q")
+    if (!warehouse) throw new ActionError("Ombor topilmadi yoki ruxsat yo'q")
 
     // 1. Ombor qoldig'ini tekshirish va kamaytirish
     const stock = await tx.stockLevel.findUnique({
@@ -82,7 +83,7 @@ export async function createSale(formData: FormData) {
     })
 
     if (!stock || stock.quantity < quantity) {
-      throw new Error("Omborda yetarli mahsulot yo'q")
+      throw new ActionError("Omborda yetarli mahsulot yo'q")
     }
 
     await tx.stockLevel.update({
@@ -138,7 +139,7 @@ export async function createSale(formData: FormData) {
   revalidatePath("/inventory")
   revalidatePath("/customers")
   revalidatePath("/sales")
-}
+})
 
 export async function getSales(limit = 200) {
   const orgId = await getOrgId()

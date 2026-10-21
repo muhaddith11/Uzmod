@@ -3,10 +3,11 @@
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/auth"
 import { subDays, startOfDay, format } from "date-fns"
+import { ActionError } from "@/lib/action"
 
 async function getOrgId() {
   const session = await auth()
-  if (!session?.user) throw new Error("Avtorizatsiya kerak")
+  if (!session?.user) throw new ActionError("Avtorizatsiya kerak")
   return (session.user as any).organizationId
 }
 

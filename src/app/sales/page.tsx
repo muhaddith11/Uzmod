@@ -1,4 +1,5 @@
 import { getProducts } from "@/lib/actions/products"
+import { ActionForm } from "@/components/ui/action-form"
 import { getWarehouses } from "@/lib/actions/warehouses"
 import { getCustomers } from "@/lib/actions/customers"
 import { createSale, getSales } from "@/lib/actions/sales"
@@ -36,7 +37,7 @@ export default async function SalesPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <form action={createSale} className="space-y-5">
+            <ActionForm action={createSale} className="space-y-5">
               <div className="space-y-2 text-black">
                 <label className="text-sm font-bold text-gray-700">Mahsulotni tanlang</label>
                 <select name="productId" required className="w-full p-3 border rounded-xl bg-gray-50 focus:ring-2 focus:ring-emerald-500 transition-all outline-none">
@@ -88,7 +89,7 @@ export default async function SalesPage() {
               <Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 font-bold h-12 text-lg text-white">
                 Sotuvni yakunlash
               </Button>
-            </form>
+            </ActionForm>
           </CardContent>
         </Card>
 

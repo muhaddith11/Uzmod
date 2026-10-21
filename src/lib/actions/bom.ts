@@ -3,37 +3,38 @@
 import { prisma } from "@/lib/prisma"
 import { requireRole } from "@/lib/session"
 import { revalidatePath } from "next/cache"
+import { action, ActionError } from "@/lib/action"
 
-export async function addBOMItem(formData: FormData) {
+export const addBOMItem = action(async function addBOMItem(formData: FormData) {
   const { organizationId: orgId } = await requireRole('ADMIN', 'MANAGER')
   const productId = formData.get("productId") as string
   const materialId = formData.get("materialId") as string
   const quantityNeeded = parseFloat(formData.get("quantityNeeded") as string)
 
   if (!productId || !materialId || !quantityNeeded || quantityNeeded <= 0) {
-    throw new Error("Ma'lumotlar to'liq emas")
+    throw new ActionError("Ma'lumotlar to'liq emas")
   }
 
   // Mahsulot shu tashkilotga tegishligini tekshirish
   const product = await prisma.product.findFirst({
     where: { id: productId, organizationId: orgId, isRawMaterial: false }
   })
-  if (!product) throw new Error("Tayyor mahsulot topilmadi")
+  if (!product) throw new ActionError("Tayyor mahsulot topilmadi")
 
   // Xomashyo shu tashkilotga tegishligini tekshirish
   const material = await prisma.product.findFirst({
     where: { id: materialId, organizationId: orgId, isRawMaterial: true }
   })
-  if (!material) throw new Error("Xomashyo topilmadi yoki ruxsat yo'q")
+  if (!material) throw new ActionError("Xomashyo topilmadi yoki ruxsat yo'q")
 
   await prisma.bom.create({
     data: { productId, materialId, quantityNeeded }
   })
   revalidatePath("/inventory")
   revalidatePath("/production")
-}
+})
 
-export async function deleteBOMItem(id: string) {
+export const deleteBOMItem = action(async function deleteBOMItem(id: string) {
   const { organizationId: orgId } = await requireRole('ADMIN', 'MANAGER')
 
   // BOM shu tashkilotga tegishligini tekshirish
@@ -43,10 +44,10 @@ export async function deleteBOMItem(id: string) {
   })
 
   if (!bom || bom.product.organizationId !== orgId) {
-    throw new Error("Ruxsat yo'q")
+    throw new ActionError("Ruxsat yo'q")
   }
 
   await prisma.bom.delete({ where: { id } })
   revalidatePath("/inventory")
   revalidatePath("/production")
-}
+})

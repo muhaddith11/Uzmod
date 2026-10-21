@@ -1,4 +1,5 @@
 import { getProducts, createProduct, deleteProduct } from "@/lib/actions/products"
+import { ActionForm } from "@/components/ui/action-form"
 import { getWarehouses } from "@/lib/actions/warehouses"
 import { stockIn, stockAdjust } from "@/lib/actions/stock"
 import { Button } from "@/components/ui/button"
@@ -38,7 +39,7 @@ export default async function InventoryPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <form action={createProduct} className="space-y-4">
+            <ActionForm action={createProduct} className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-gray-700">Nomi</label>
                 <Input name="name" placeholder="Masalan: Maxsus mato" required className="bg-gray-50 border-gray-100" />
@@ -91,7 +92,7 @@ export default async function InventoryPage() {
               <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 font-bold h-11">
                 Ro'yxatga qo'shish
               </Button>
-            </form>
+            </ActionForm>
           </CardContent>
         </Card>
 
@@ -193,7 +194,7 @@ function ProductTable({ products, warehouses }: { products: any[], warehouses: a
                           <DialogHeader>
                             <DialogTitle className="text-xl font-black">{p.name} — Kirim qilish</DialogTitle>
                           </DialogHeader>
-                          <form action={stockIn} className="space-y-4 pt-4">
+                          <ActionForm action={stockIn} className="space-y-4 pt-4">
                             <input type="hidden" name="productId" value={p.id} />
                             <div className="space-y-2 text-black">
                               <label className="text-sm font-bold text-gray-700">Omborni tanlang</label>
@@ -210,7 +211,7 @@ function ProductTable({ products, warehouses }: { products: any[], warehouses: a
                               <Input name="note" placeholder="Masalan: Yangi partiya" className="bg-gray-50 h-12" />
                             </div>
                             <Button type="submit" className="w-full bg-indigo-600 h-12 font-bold text-lg">Tasdiqlash</Button>
-                          </form>
+                          </ActionForm>
                         </DialogContent>
                       </Dialog>
 
@@ -226,7 +227,7 @@ function ProductTable({ products, warehouses }: { products: any[], warehouses: a
                           <DialogHeader>
                             <DialogTitle className="text-xl font-black">{p.name} — Brak qilish</DialogTitle>
                           </DialogHeader>
-                          <form action={stockAdjust} className="space-y-4 pt-4">
+                          <ActionForm action={stockAdjust} className="space-y-4 pt-4">
                             <input type="hidden" name="productId" value={p.id} />
                             <input type="hidden" name="type" value="WASTAGE" />
                             <div className="space-y-2 text-black">
@@ -244,7 +245,7 @@ function ProductTable({ products, warehouses }: { products: any[], warehouses: a
                               <Input name="note" placeholder="Masalan: Kuyib ketdi, Sifatsiz" required className="bg-orange-50 border-orange-200 h-12" />
                             </div>
                             <Button type="submit" className="w-full bg-orange-600 h-12 font-bold text-lg text-white">Brakka chiqarish</Button>
-                          </form>
+                          </ActionForm>
                         </DialogContent>
                       </Dialog>
 
@@ -260,7 +261,7 @@ function ProductTable({ products, warehouses }: { products: any[], warehouses: a
                           <DialogHeader>
                             <DialogTitle className="text-xl font-black">{p.name} — Taftish (Real qoldiq)</DialogTitle>
                           </DialogHeader>
-                          <form action={stockAdjust} className="space-y-4 pt-4">
+                          <ActionForm action={stockAdjust} className="space-y-4 pt-4">
                             <input type="hidden" name="productId" value={p.id} />
                             <input type="hidden" name="type" value="REVISION" />
                             <div className="space-y-2 text-black">
@@ -278,12 +279,12 @@ function ProductTable({ products, warehouses }: { products: any[], warehouses: a
                               <Input name="note" placeholder="Masalan: Haftalik tahlil" required className="bg-emerald-50 border-emerald-200 h-12" />
                             </div>
                             <Button type="submit" className="w-full bg-emerald-600 h-12 font-bold text-lg text-white">Qoldiqni yangilash</Button>
-                          </form>
+                          </ActionForm>
                         </DialogContent>
                       </Dialog>
                       
                       <DeleteButton
-                        action={async () => { 'use server'; await deleteProduct(p.id) }}
+                        action={async () => { 'use server'; return deleteProduct(p.id) }}
                         confirmText={`"${p.name}" mahsulotini o'chirasizmi?`}
                         className="text-red-400 hover:text-red-600 hover:bg-red-50"
                       />

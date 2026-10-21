@@ -96,12 +96,18 @@ export default function TMAPage() {
     e.preventDefault()
     setIsSubmitting(true)
     setStatus(null)
-    const formData = new FormData(e.currentTarget)
+    // currentTarget await'dan keyin null bo'lib qoladi — formani oldindan olamiz
+    const form = e.currentTarget
+    const formData = new FormData(form)
 
     try {
-      await produceProduct(formData)
+      const result = await produceProduct(formData)
+      if (result.error) {
+        setStatus({ type: 'error', message: result.error })
+        return
+      }
       setStatus({ type: 'success', message: "Tikuv qaydi saqlandi!" })
-      e.currentTarget.reset()
+      form.reset()
       setProdProductId("")
       setProdQty("")
       setRollOptions([])
@@ -116,12 +122,17 @@ export default function TMAPage() {
     e.preventDefault()
     setIsSubmitting(true)
     setStatus(null)
-    const formData = new FormData(e.currentTarget)
+    const form = e.currentTarget
+    const formData = new FormData(form)
 
     try {
-      await createRolls(formData)
+      const result = await createRolls(formData)
+      if (result.error) {
+        setStatus({ type: 'error', message: result.error })
+        return
+      }
       setStatus({ type: 'success', message: "Rulonlar qabul qilindi!" })
-      e.currentTarget.reset()
+      form.reset()
     } catch (err: any) {
       setStatus({ type: 'error', message: err.message })
     } finally {

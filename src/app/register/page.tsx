@@ -12,13 +12,21 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  async function handleSubmit(formData: FormData) {
+  // onSubmit: <form action> React 19'da xato qaytganda ham maydonlarni tozalab yuborardi
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const formData = new FormData(e.currentTarget)
     setLoading(true)
     setError(null)
     try {
-      await register(formData)
-    } catch (err: any) {
-      setError(err.message)
+      // Muvaffaqiyatda register() /login'ga yo'naltiradi
+      const result = await register(formData)
+      if (result.error) {
+        setError(result.error)
+        setLoading(false)
+      }
+    } catch {
+      setError("Xatolik yuz berdi")
       setLoading(false)
     }
   }
@@ -32,7 +40,7 @@ export default function RegisterPage() {
             SaaS tizimi uchun yangi tashkilot yarating
           </CardDescription>
         </CardHeader>
-        <form action={handleSubmit}>
+        <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             {error && (
               <div className="p-3 bg-red-100 text-red-600 rounded-lg text-sm font-medium">

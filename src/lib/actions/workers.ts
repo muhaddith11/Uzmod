@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { getOrgId, requireRole } from "@/lib/session"
 import { revalidatePath } from "next/cache"
 import bcrypt from "bcryptjs"
+import { action, ActionError } from "@/lib/action"
 
 /**
  * Tashkilotdagi barcha xodimlar (ro'yxat uchun). passwordHash sahifaga tushmasligi
@@ -22,22 +23,22 @@ export async function getStaff() {
  * Yangi xodim qo'shadi. Xodim email+parol bilan kiradi, so'ng Profil sahifasidan
  * Telegram'ini ulaydi. Menejer faqat ishchi qo'sha oladi — menejer tayinlash adminda.
  */
-export async function createEmployee(formData: FormData) {
+export const createEmployee = action(async function createEmployee(formData: FormData) {
   const { organizationId: orgId, role: myRole } = await requireRole('ADMIN', 'MANAGER')
   const name = (formData.get("name") as string)?.trim()
   const email = (formData.get("email") as string)?.trim()
   const password = formData.get("password") as string
   const role = formData.get("role") as string
 
-  if (!name || !email || !password) throw new Error("Barcha maydonlarni to'ldiring")
+  if (!name || !email || !password) throw new ActionError("Barcha maydonlarni to'ldiring")
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  if (!emailRegex.test(email)) throw new Error("Email manzil noto'g'ri formatda")
-  if (password.length < 6) throw new Error("Parol kamida 6 ta belgidan iborat bo'lishi kerak")
+  if (!emailRegex.test(email)) throw new ActionError("Email manzil noto'g'ri formatda")
+  if (password.length < 6) throw new ActionError("Parol kamida 6 ta belgidan iborat bo'lishi kerak")
 
-  if (role !== 'WORKER' && role !== 'MANAGER') throw new Error("Noto'g'ri lavozim")
+  if (role !== 'WORKER' && role !== 'MANAGER') throw new ActionError("Noto'g'ri lavozim")
   if (role === 'MANAGER' && myRole !== 'ADMIN') {
-    throw new Error("Menejerni faqat admin qo'sha oladi")
+    throw new ActionError("Menejerni faqat admin qo'sha oladi")
   }
 
   try {
@@ -52,14 +53,14 @@ export async function createEmployee(formData: FormData) {
     })
   } catch (error: any) {
     if (error.code === 'P2002') {
-      throw new Error("Ushbu email bilan foydalanuvchi mavjud")
+      throw new ActionError("Ushbu email bilan foydalanuvchi mavjud")
     }
     throw error
   }
 
   revalidatePath("/workers")
   revalidatePath("/production")
-}
+})
 
 export async function getWorkers() {
   const orgId = await getOrgId()
@@ -76,7 +77,7 @@ export async function getWorkers() {
   })
 }
 
-export async function addAdjustment(formData: FormData) {
+export const addAdjustment = action(async function addAdjustment(formData: FormData) {
   // Bonus/jarima — faqat rahbariyat huquqi. Aks holda ishchi o'ziga bonus yozib oladi.
   const { organizationId: orgId } = await requireRole('ADMIN', 'MANAGER')
   const userId = formData.get("userId") as string
@@ -84,15 +85,15 @@ export async function addAdjustment(formData: FormData) {
   const type = formData.get("type") as 'BONUS' | 'PENALTY'
   const note = formData.get("note") as string
 
-  if (!userId || !type) throw new Error("Ma'lumotlar to'liq emas")
-  if (isNaN(amount) || amount <= 0) throw new Error("Summa 0 dan katta bo'lishi kerak")
-  if (type !== 'BONUS' && type !== 'PENALTY') throw new Error("Noto'g'ri amal turi")
+  if (!userId || !type) throw new ActionError("Ma'lumotlar to'liq emas")
+  if (isNaN(amount) || amount <= 0) throw new ActionError("Summa 0 dan katta bo'lishi kerak")
+  if (type !== 'BONUS' && type !== 'PENALTY') throw new ActionError("Noto'g'ri amal turi")
 
   // Xodim shu tashkilotga tegishligini tekshirish
   const worker = await prisma.user.findFirst({
     where: { id: userId, organizationId: orgId }
   })
-  if (!worker) throw new Error("Xodim topilmadi yoki ruxsat yo'q")
+  if (!worker) throw new ActionError("Xodim topilmadi yoki ruxsat yo'q")
 
   await prisma.staffAdjustment.create({
     data: {
@@ -105,12 +106,12 @@ export async function addAdjustment(formData: FormData) {
   })
 
   revalidatePath("/workers")
-}
+})
 
-export async function deleteAdjustment(id: string) {
+export const deleteAdjustment = action(async function deleteAdjustment(id: string) {
   const { organizationId: orgId } = await requireRole('ADMIN', 'MANAGER')
   await prisma.staffAdjustment.delete({
     where: { id, organizationId: orgId }
   })
   revalidatePath("/workers")
-}
+})

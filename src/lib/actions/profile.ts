@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { getSessionUser } from "@/lib/session"
 import { getBotUsername } from "@/lib/telegram"
 import { redirect } from "next/navigation"
+import { action, ActionError } from "@/lib/action"
 
 const LINK_TOKEN_TTL_MINUTES = 15
 
@@ -14,11 +15,11 @@ const LINK_TOKEN_TTL_MINUTES = 15
  * odamning haqiqiy Telegram ID'sini yozadi (api/bot/route.ts). ID qo'lda kiritilmaydi —
  * aks holda istalgan odam begona ID'ni o'z hisobiga ulab qo'ya olardi.
  */
-export async function startTelegramLink() {
+export const startTelegramLink = action(async function startTelegramLink() {
   const { id } = await getSessionUser()
 
   const botUsername = await getBotUsername()
-  if (!botUsername) throw new Error("Telegram bot sozlanmagan")
+  if (!botUsername) throw new ActionError("Telegram bot sozlanmagan")
 
   const token = crypto.randomBytes(16).toString("hex")
   await prisma.user.update({
@@ -30,4 +31,4 @@ export async function startTelegramLink() {
   })
 
   redirect(`https://t.me/${botUsername}?start=${token}`)
-}
+})

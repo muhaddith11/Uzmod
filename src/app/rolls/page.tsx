@@ -1,4 +1,5 @@
 import { getProducts } from "@/lib/actions/products"
+import { ActionForm } from "@/components/ui/action-form"
 import { getWarehouses } from "@/lib/actions/warehouses"
 import { getRolls, createRolls, finishRoll } from "@/lib/actions/rolls"
 import { Button } from "@/components/ui/button"
@@ -55,7 +56,7 @@ export default async function RollsPage() {
                 qo'shayotganda &laquo;Rulon bilan hisoblanadi&raquo; belgisini yoqing.
               </p>
             ) : (
-              <form action={createRolls} className="space-y-4">
+              <ActionForm action={createRolls} className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-gray-700">Xomashyo</label>
                   <select
@@ -100,7 +101,7 @@ export default async function RollsPage() {
                 <Button type="submit" className="w-full bg-amber-600 hover:bg-amber-700 font-bold h-11 text-white">
                   Qabul qilish
                 </Button>
-              </form>
+              </ActionForm>
             )}
           </CardContent>
         </Card>
@@ -164,7 +165,7 @@ export default async function RollsPage() {
                       </TableCell>
                       <TableCell className="py-5 px-6 text-right">
                         <DeleteButton
-                          action={async () => { 'use server'; await finishRoll(r.id) }}
+                          action={async () => { 'use server'; return finishRoll(r.id) }}
                           confirmText={`Bu rulonni yopasizmi? Qolgan ${r.currentWeight} ${r.product.unit} brak sifatida hisobdan chiqadi.`}
                         />
                       </TableCell>

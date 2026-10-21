@@ -57,21 +57,26 @@ export function ProductionForm({
   const qty = parseFloat(quantity)
   const hasQty = !isNaN(qty) && qty > 0
 
-  function handleSubmit(formData: FormData) {
+  // onSubmit: <form action> React 19'da xato qaytganda ham maydonlarni tozalab yuborardi
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const form = e.currentTarget
+    const formData = new FormData(form)
     setError(null)
     startTransition(async () => {
-      try {
-        await produceProduct(formData)
-        setQuantity("")
-        setProductId("")
-      } catch (e: any) {
-        setError(e?.message ?? "Xatolik yuz berdi")
+      const result = await produceProduct(formData)
+      if (result.error) {
+        setError(result.error)
+        return
       }
+      form.reset()
+      setQuantity("")
+      setProductId("")
     })
   }
 
   return (
-    <form action={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-2">
         <label className="text-sm font-bold text-gray-700">Mahsulotni tanlang</label>
         <select

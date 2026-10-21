@@ -1,4 +1,5 @@
 import { getExpenses, createExpense, deleteExpense } from "@/lib/actions/expenses"
+import { ActionForm } from "@/components/ui/action-form"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
@@ -60,7 +61,7 @@ export default async function FinancePage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <form action={createExpense} className="space-y-4">
+            <ActionForm action={createExpense} className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-bold text-gray-700">Miqdori (so'm)</label>
                 <Input name="amount" type="number" placeholder="50000" required className="bg-gray-50 border-gray-100 h-11" />
@@ -86,7 +87,7 @@ export default async function FinancePage() {
               <Button type="submit" className="w-full bg-rose-600 hover:bg-rose-700 font-bold h-11 text-white">
                 Saqlash
               </Button>
-            </form>
+            </ActionForm>
           </CardContent>
         </Card>
 
@@ -128,7 +129,7 @@ export default async function FinancePage() {
                     </TableCell>
                     <TableCell className="py-5 px-6 text-right">
                       <DeleteButton
-                        action={async () => { 'use server'; await deleteExpense(exp.id) }}
+                        action={async () => { 'use server'; return deleteExpense(exp.id) }}
                         confirmText="Bu xarajatni o'chirasizmi?"
                         className="text-rose-400 hover:text-rose-600 hover:bg-rose-50"
                       />
