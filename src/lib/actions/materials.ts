@@ -1,44 +1,46 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
+import { auth } from '@/auth'
 import { revalidatePath } from 'next/cache'
 
-const TEMP_ORG_ID = 'default-org-id'
+async function getOrgId() {
+  const session = await auth()
+  if (!session?.user) throw new Error("Avtorizatsiya kerak")
+  return (session.user as any).organizationId
+}
 
 export async function getMaterials() {
-  return await prisma.rawMaterial.findMany({
-    where: { organizationId: TEMP_ORG_ID },
+  const orgId = await getOrgId()
+  return await prisma.product.findMany({
+    where: { 
+      organizationId: orgId,
+      isRawMaterial: true 
+    },
     orderBy: { name: 'asc' }
   })
 }
 
 export async function createMaterial(formData: FormData) {
+  const orgId = await getOrgId()
   const name = formData.get('name') as string
-  const unit = formData.get('unit') as any
-  const price = parseFloat(formData.get('price') as string)
+  const unit = formData.get('unit') as string
+  const price = parseFloat(formData.get('price') as string || "0")
 
-  await prisma.rawMaterial.create({
+  if (!name?.trim()) throw new Error("Xomashyo nomini kiriting")
+  if (isNaN(price) || price < 0) throw new Error("Narx noto'g'ri kiritilgan")
+
+  await prisma.product.create({
     data: {
       name,
       unit,
-      pricePerUnit: price,
-      organizationId: TEMP_ORG_ID
+      price,
+      // Xomashyo uchun sotib olish narxi ayni paytda tannarx hisoblanadi.
+      // BOM orqali tayyor mahsulot tannarxi shu qiymatdan hisoblanadi.
+      costPrice: price,
+      isRawMaterial: true,
+      organizationId: orgId
     }
   })
-  revalidatePath('/materials')
-}
-
-export async function addBOMItem(formData: FormData) {
-  const productId = formData.get('productId') as string
-  const materialId = formData.get('materialId') as string
-  const quantityNeeded = parseFloat(formData.get('quantityNeeded') as string)
-
-  await prisma.bomItem.create({
-    data: {
-      productId,
-      materialId,
-      quantityNeeded
-    }
-  })
-  revalidatePath('/production/setup')
+  revalidatePath('/inventory')
 }

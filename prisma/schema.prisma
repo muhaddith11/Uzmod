@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider   = "prisma-client-js"
+  engineType = "library"
 }
 
 datasource db {
@@ -14,10 +15,16 @@ model Organization {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  users       User[]
-  products    Product[]
-  warehouses  Warehouse[]
-  movements   StockMovement[]
+  users           User[]
+  products        Product[]
+  warehouses      Warehouse[]
+  movements       StockMovement[]
+  customers       Customer[]
+  sales           Sale[]
+  expenses        Expense[]
+  staffAdjustments StaffAdjustment[]
+  rolls            Roll[]
+  debtPayments     DebtPayment[]
 }
 
 // 2. Foydalanuvchilar (Auth uchun)
@@ -26,10 +33,17 @@ model User {
   email          String       @unique
   name           String?
   passwordHash   String
+  telegramId     String?      @unique
   role           Role         @default(WORKER)
-  
+
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  adjustments    StaffAdjustment[]
+  movements      StockMovement[] @relation("WorkerMovements")
+  createdMovements StockMovement[] @relation("CreatorMovements")
+
+  @@index([organizationId])
 }
 
 enum Role {
@@ -43,43 +57,62 @@ model Warehouse {
   id             String       @id @default(cuid())
   name           String
   address        String?
-  
+
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   stockLevels    StockLevel[]
   movementsFrom  StockMovement[] @relation("FromWarehouse")
   movementsTo    StockMovement[] @relation("ToWarehouse")
+  rolls          Roll[]
+
+  @@index([organizationId])
 }
 
 // 4. Mahsulot va Xomashyo (Yagona model)
 model Product {
   id             String       @id @default(cuid())
   name           String
-  sku            String?      
-  unit           String       @default("dona") // KG, METER, PIECE
-  isRawMaterial  Boolean      @default(false)  // true = Xomashyo, false = Tayyor mahsulot
-  price          Decimal      @db.Decimal(10, 2)
-  
+  sku            String?
+  unit           String       @default("dona")
+  isRawMaterial  Boolean      @default(false)
+  // Rulon (bobina) bilan hisoblanadimi? Faqat xomashyo uchun ma'noga ega.
+  // Yoqilsa, ishlab chiqarishda ishchi aniq rulonni tanlashi shart bo'ladi.
+  isRollTracked  Boolean      @default(false)
+  price          Decimal      @default(0) @db.Decimal(10, 2)
+  costPrice      Decimal      @default(0) @db.Decimal(10, 2)
+  productionWage Decimal      @default(0) @db.Decimal(10, 2)
+  minStockLevel  Decimal      @default(0) @db.Decimal(10, 2)
+
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  
-  // Resept mantiqi (BOM)
-  bomItems       BOM[]        @relation("FinishedProduct")
-  usedInBoms     BOM[]        @relation("RawMaterial")
-  
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  bomItems       Bom[]        @relation("FinishedProduct")
+  usedInBoms     Bom[]        @relation("RawMaterial")
+
   stockLevels    StockLevel[]
   movements      StockMovement[]
+  saleItems      SaleItem[]
+  rolls          Roll[]
+
+  @@index([organizationId])
+  @@index([organizationId, isRawMaterial])
 }
 
 // 5. BOM (Recipe)
-model BOM {
+// Model nomi `Bom` — Prisma klienti `prisma.bom` sifatida ochadi.
+// Jadval nomi @@map orqali "BOM" bo'lib qoladi.
+model Bom {
   id             String  @id @default(cuid())
-  productId      String  // Qaysi mahsulot uchun resept?
+  productId      String
   product        Product @relation("FinishedProduct", fields: [productId], references: [id], onDelete: Cascade)
-  materialId     String  // Qaysi xomashyo ishlatiladi?
-  material       Product @relation("RawMaterial", fields: [materialId], references: [id])
-  quantityNeeded Float   // 1 ta mahsulot uchun qancha kerak?
+  materialId     String
+  material       Product @relation("RawMaterial", fields: [materialId], references: [id], onDelete: Cascade)
+  quantityNeeded Float
+
+  @@unique([productId, materialId])
+  @@index([productId])
+  @@map("BOM")
 }
 
 // 6. Inventarizatsiya (Har bir ombor uchun alohida)
@@ -99,20 +132,172 @@ model StockMovement {
   id              String       @id @default(cuid())
   type            MovementType
   quantity        Float
-  
+
   productId       String
   product         Product      @relation(fields: [productId], references: [id])
-  
+
   fromWarehouseId String?
   fromWarehouse   Warehouse?   @relation("FromWarehouse", fields: [fromWarehouseId], references: [id])
   toWarehouseId   String?
   toWarehouse     Warehouse?   @relation("ToWarehouse", fields: [toWarehouseId], references: [id])
-  
+
+  workerId        String?
+  worker          User?        @relation("WorkerMovements", fields: [workerId], references: [id])
+
+  // Qaysi rulondan sarflandi (rulon bilan hisoblanadigan xomashyo uchun)
+  rollId          String?
+  roll            Roll?        @relation(fields: [rollId], references: [id], onDelete: SetNull)
+
   note            String?
-  creatorId       String?      // Qaysi foydalanuvchi qildi?
+  creatorId       String?
+  creator         User?        @relation("CreatorMovements", fields: [creatorId], references: [id])
   organizationId  String
   organization    Organization @relation(fields: [organizationId], references: [id])
   createdAt       DateTime     @default(now())
+
+  @@index([organizationId])
+  @@index([organizationId, type])
+  @@index([organizationId, createdAt])
+}
+
+// 8. Mato Rulonlari (Tikuv sehi uchun maxsus)
+model Roll {
+  id             String       @id @default(cuid())
+  productId      String
+  product        Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warehouseId    String
+  warehouse      Warehouse    @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+
+  initialWeight  Float
+  currentWeight  Float
+  status         RollStatus   @default(AVAILABLE)
+
+  movements      StockMovement[]
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([organizationId, productId, status])
+}
+
+enum RollStatus {
+  AVAILABLE
+  IN_USE
+  FINISHED
+}
+
+// 9. Mijozlar (Point 5 uchun)
+model Customer {
+  id             String       @id @default(cuid())
+  name           String
+  phone          String?
+  debt           Decimal      @default(0) @db.Decimal(10, 2)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sales          Sale[]
+  debtPayments   DebtPayment[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+}
+
+// 9b. Qarz to'lovlari — mijoz qarzini yopgani auditi
+model DebtPayment {
+  id             String       @id @default(cuid())
+  amount         Decimal      @db.Decimal(10, 2)
+  note           String?
+
+  customerId     String
+  customer       Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+  @@index([organizationId, createdAt])
+  @@index([customerId])
+}
+
+// 10. Sotuvlar (Point 5 uchun)
+model Sale {
+  id              String       @id @default(cuid())
+  totalAmount     Decimal      @db.Decimal(10, 2)
+  paidAmount      Decimal      @db.Decimal(10, 2)
+  paymentType     PaymentType  @default(CASH)
+
+  customerId      String?
+  customer        Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  items           SaleItem[]
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt       DateTime     @default(now())
+
+  @@index([organizationId])
+  @@index([organizationId, createdAt])
+}
+
+model SaleItem {
+  id             String   @id @default(cuid())
+  saleId         String
+  sale           Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  
+  productId      String
+  product        Product  @relation(fields: [productId], references: [id])
+  
+  quantity       Float
+  price          Decimal  @db.Decimal(10, 2) // Sotilgan narxi
+  costPrice      Decimal  @db.Decimal(10, 2) // O'sha vaqtdagi tannarxi
+}
+
+enum PaymentType {
+  CASH
+  CARD
+  DEBT
+}
+
+// 11. Xarajatlar (Point 2 uchun)
+model Expense {
+  id              String       @id @default(cuid())
+  amount          Decimal      @db.Decimal(10, 2)
+  category        String
+  note            String?
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt       DateTime     @default(now())
+
+  @@index([organizationId])
+}
+
+// 12. Xodimlar Bonus/Jarima (Point 3 uchun)
+model StaffAdjustment {
+  id              String         @id @default(cuid())
+  amount          Decimal        @db.Decimal(10, 2)
+  type            AdjustmentType
+  note            String?
+
+  userId          String
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  organizationId  String
+  organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt       DateTime       @default(now())
+
+  @@index([organizationId])
+  @@index([userId])
+}
+
+enum AdjustmentType {
+  BONUS
+  PENALTY
 }
 
 enum MovementType {
@@ -121,4 +306,6 @@ enum MovementType {
   PRODUCTION
   TRANSFER
   ADJUSTMENT
+  WASTAGE
+  REVISION
 }

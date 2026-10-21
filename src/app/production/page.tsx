@@ -1,100 +1,102 @@
-import { getProducts } from '@/lib/actions/products'
-import { produceProduct, getProductionLogs } from '@/lib/actions/production'
-import { HammerIcon, HistoryIcon } from 'lucide-react'
+import { getProducts } from "@/lib/actions/products"
+import { getWarehouses } from "@/lib/actions/warehouses"
+import { getProductionLogs } from "@/lib/actions/production"
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { getWorkers } from "@/lib/actions/workers"
+import { ProductionForm } from "@/components/production/ProductionForm"
+import { HammerIcon, HistoryIcon, ArrowRightIcon } from "lucide-react"
 
 export default async function ProductionPage() {
   const products = await getProducts()
+  const warehouses = await getWarehouses()
+  const workers = await getWorkers()
   const logs = await getProductionLogs()
 
+  const finishedGoods = products.filter(p => !p.isRawMaterial)
+
   return (
-    <div className="p-8 max-w-6xl mx-auto space-y-12">
-      <div className="flex justify-between items-end">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Ishlab Chiqarish</h1>
-          <p className="text-gray-500">Tayyor mahsulot yaratish va xomashyo sarfi</p>
-        </div>
+    <div className="p-8 max-w-7xl mx-auto space-y-12">
+      <div className="flex flex-col gap-2">
+        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2 text-gray-900">
+          <HammerIcon className="w-8 h-8 text-purple-600" />
+          Ishlab chiqarish Moduli
+        </h1>
+        <p className="text-gray-500">Tayyor mahsulot ishlab chiqarish va avtomatik xomashyo sarfi</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-        {/* Ishlab chiqarish formasi */}
-        <section className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
-          <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-purple-600">
-            <HammerIcon className="w-6 h-6" />
-            Yangi Ishlab chiqarish
-          </h2>
-          <form action={produceProduct} className="space-y-6">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Qaysi mahsulot tayyorlandi?</label>
-              <select 
-                name="productId" 
-                required 
-                className="block w-full rounded-xl border-gray-200 shadow-sm focus:border-purple-500 focus:ring-purple-500 p-4 bg-gray-50 text-black"
-              >
-                <option value="">Mahsulotni tanlang...</option>
-                {products.map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-              <p className="mt-2 text-xs text-gray-400 font-medium">* Eslatma: Mahsulot resepti (BOM) oldindan sozlangan bo'lishi kerak.</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Tayyorlangan miqdor (dona)</label>
-              <input 
-                name="quantityProduced" 
-                type="number" 
-                step="1" 
-                required 
-                className="block w-full rounded-xl border-gray-200 shadow-sm focus:border-purple-500 focus:ring-purple-500 p-4 bg-gray-50 text-black"
-                placeholder="10"
-              />
-            </div>
-
-            <button 
-              type="submit"
-              className="w-full bg-purple-600 text-white py-4 px-6 rounded-2xl hover:bg-purple-700 transition font-bold text-lg shadow-lg shadow-purple-200"
-            >
-              Tayyorlashni tasdiqlash
-            </button>
-          </form>
-        </section>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Form */}
+        <Card className="lg:col-span-1 shadow-md border-none bg-white">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ArrowRightIcon className="w-5 h-5 text-purple-600" />
+              Yangi Buyruq
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ProductionForm
+              finishedGoods={finishedGoods.map(p => ({ id: p.id, name: p.name }))}
+              warehouses={warehouses.map(w => ({ id: w.id, name: w.name }))}
+              workers={workers.map(w => ({ id: w.id, name: w.name ?? "Nomsiz" }))}
+            />
+          </CardContent>
+        </Card>
 
         {/* Tarix */}
-        <section className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-8 border-b border-gray-100">
-            <h2 className="text-xl font-bold flex items-center gap-2 text-gray-800">
-              <HistoryIcon className="w-6 h-6 text-gray-400" />
-              Oxirgi jarayonlar
-            </h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-100 text-black">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">Sana</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">Mahsulot</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">Miqdor</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
+        <Card className="lg:col-span-2 shadow-sm border-none bg-white">
+          <CardHeader className="border-b border-gray-50 pb-6">
+            <CardTitle className="flex items-center gap-2">
+              <HistoryIcon className="w-5 h-5 text-gray-400" />
+              Oxirgi ishlab chiqarishlar
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-gray-50 border-none">
+                  <TableHead className="py-4 px-6 font-bold text-gray-600">Sana</TableHead>
+                  <TableHead className="py-4 px-6 font-bold text-gray-600">Mahsulot</TableHead>
+                  <TableHead className="py-4 px-6 font-bold text-gray-600">Miqdor</TableHead>
+                  <TableHead className="py-4 px-6 font-bold text-gray-600">Ombor</TableHead>
+                  <TableHead className="py-4 px-6 font-bold text-gray-600">Ishchi</TableHead>
+                  <TableHead className="py-4 px-6 font-bold text-gray-600">Izoh</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {logs.map((log) => (
-                  <tr key={log.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(log.createdAt).toLocaleString('uz-UZ', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  <tr key={log.id} className="hover:bg-gray-50/50 border-b border-gray-50">
+                    <td className="py-4 px-6 text-sm text-gray-500 font-medium">
+                      {new Date(log.createdAt).toLocaleString('uz-UZ', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">{log.product.name}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-purple-600 font-bold">+{log.quantityProduced} dona</td>
+                    <td className="py-4 px-6 font-bold text-gray-900">{log.product.name}</td>
+                    <td className="py-4 px-6 text-purple-600 font-extrabold">+{log.quantity} dona</td>
+                     <td className="py-4 px-6">
+                        <span className="text-xs bg-gray-100 px-2 py-1 rounded-full text-gray-600 font-bold text-nowrap">
+                          {log.toWarehouse?.name}
+                        </span>
+                     </td>
+                     <td className="py-4 px-6">
+                        <span className="text-xs bg-indigo-50 px-2 py-1 rounded-full text-indigo-700 font-bold">
+                          {(log as any).worker?.name || "—"}
+                        </span>
+                     </td>
+                     <td className="py-4 px-6 text-sm text-gray-500 italic">
+                       {log.note}
+                     </td>
                   </tr>
                 ))}
                 {logs.length === 0 && (
                   <tr>
-                    <td colSpan={3} className="px-6 py-12 text-center text-gray-400 italic">Hali ishlab chiqarish amalga oshirilmagan</td>
+                    <td colSpan={4} className="h-48 text-center text-gray-400 italic">
+                      Hali hech narsa ishlab chiqarilmadi
+                    </td>
                   </tr>
                 )}
-              </tbody>
-            </table>
-          </div>
-        </section>
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )
