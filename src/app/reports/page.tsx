@@ -13,7 +13,7 @@ export default async function ReportsPage({
 }: {
   searchParams: Promise<{ from?: string; to?: string }>
 }) {
-  await requireModule("finance")
+  await requireModule("legacy")
   const range = await searchParams
   const [t, locale, data] = await Promise.all([getT(), getLocale(), getFinancialSummary(range)])
   const R = t.reports

@@ -5,20 +5,20 @@ import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { getSessionUser, isManagement, requireRole, type SessionUser } from "@/lib/session"
 import { action, ActionError } from "@/lib/action"
-import { fields, parseForm, parseInput } from "@/lib/validation"
-import { serializable, type Tx } from "@/lib/db"
-import { addStock, applyIncomingCost, takeStock, totalStock } from "@/lib/inventory"
-import { assertOrgWarehouse } from "@/lib/guards"
-import { roundMoney, roundQty } from "@/lib/domain/costing"
-import { evaluateRun, kgPerPair, parseMachineNumbers } from "@/lib/domain/machines"
-import { checkLowStock } from "@/lib/alerts"
+import { fields, parseForm } from "@/lib/validation"
+import { serializable } from "@/lib/db"
+import { addStock, takeStock } from "@/lib/inventory"
+import { roundQty } from "@/lib/domain/costing"
+import { parseMachineNumbers, socksFromKg } from "@/lib/domain/machines"
+import { defaultWarehouseId, readyAtFor, settleDueLoads } from "@/lib/workshop"
 import { formatNumber } from "@/lib/format"
 import { parseDateRange, startOfTashkentDayFor, type DateRangeParams } from "@/lib/tz"
 import { getLocale, getT } from "@/i18n/server"
 
-function revalidateMachines() {
+function revalidateWorkshop() {
   revalidatePath("/machines")
-  revalidatePath("/yarn")
+  revalidatePath("/stock")
+  revalidatePath("/sales")
   revalidatePath("/")
 }
 
@@ -33,72 +33,58 @@ async function resolveWorker(me: SessionUser, requested: string | undefined): Pr
   return worker.id
 }
 
-/** Stanoklar taxtasi: har bir stanok va undagi ochiq ish */
+/** Stanoklar taxtasi: har bir stanok va unda tikilayotgan ip */
 export async function getMachinesBoard() {
   const me = await getSessionUser()
-  const [machines, runs] = await Promise.all([
+  await settleDueLoads(me.organizationId)
+  const [machines, loads, org] = await Promise.all([
     prisma.machine.findMany({
       where: { organizationId: me.organizationId },
       orderBy: { number: 'asc' },
     }),
-    prisma.machineRun.findMany({
-      where: { organizationId: me.organizationId, status: 'OPEN' },
+    prisma.machineLoad.findMany({
+      where: { organizationId: me.organizationId, status: 'KNITTING' },
       include: {
-        yarn: { select: { name: true, color: true, yarnType: true } },
-        product: { select: { name: true } },
-        events: {
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-          include: { worker: { select: { name: true, email: true } } },
-        },
+        yarn: { select: { name: true, color: true } },
+        worker: { select: { name: true, email: true } },
       },
+      orderBy: { loadedAt: 'asc' },
     }),
+    prisma.organization.findUniqueOrThrow({ where: { id: me.organizationId }, select: { autoTransferHours: true } }),
   ])
-  const runByMachine = new Map(runs.map(r => [r.machineId, r]))
+  const loadsByMachine = new Map<string, typeof loads>()
+  for (const load of loads) loadsByMachine.set(load.machineId, [...(loadsByMachine.get(load.machineId) ?? []), load])
 
-  return machines.map(m => {
-    const run = runByMachine.get(m.id)
-    return {
+  return {
+    autoTransferHours: org.autoTransferHours,
+    machines: machines.map(m => ({
       id: m.id,
       number: m.number,
       group: m.group,
       isActive: m.isActive,
-      run: run
-        ? {
-            id: run.id,
-            yarnName: run.yarn.name,
-            yarnColor: run.yarn.color,
-            productName: run.product.name,
-            gramsPerSock: run.gramsPerSock,
-            issuedKg: run.issuedKg,
-            countedPairs: run.countedPairs,
-            startedAt: run.startedAt,
-            lastWorker: run.events[0]?.worker ? (run.events[0].worker.name ?? run.events[0].worker.email) : null,
-            ...evaluateRun({ issuedKg: run.issuedKg, countedPairs: run.countedPairs, leftoverKg: null, gramsPerSock: run.gramsPerSock }),
-          }
-        : null,
-    }
-  })
+      loads: (loadsByMachine.get(m.id) ?? []).map(l => ({
+        id: l.id,
+        yarnName: l.yarn.name,
+        yarnColor: l.yarn.color,
+        gramsPerSock: l.gramsPerSock,
+        kg: l.kg,
+        socks: socksFromKg(l.kg, l.gramsPerSock),
+        loadedAt: l.loadedAt,
+        readyAt: l.readyAt,
+        workerName: l.worker ? (l.worker.name ?? l.worker.email) : null,
+      })),
+    })),
+  }
 }
 
-/** Ishga tushirish formasi uchun tanlovlar */
-export async function getMachineFormOptions() {
+/** Ip qo'yish formasi uchun tanlovlar */
+export async function getLoadFormOptions() {
   const me = await getSessionUser()
-  const [yarns, models, warehouses, workers] = await Promise.all([
+  const [yarns, workers] = await Promise.all([
     prisma.product.findMany({
       where: { organizationId: me.organizationId, isRawMaterial: true, yarnType: { not: null } },
       include: { stockLevels: { select: { quantity: true } } },
       orderBy: [{ yarnType: 'asc' }, { color: 'asc' }],
-    }),
-    prisma.product.findMany({
-      where: { organizationId: me.organizationId, isRawMaterial: false },
-      select: { id: true, name: true },
-      orderBy: { name: 'asc' },
-    }),
-    prisma.warehouse.findMany({
-      where: { organizationId: me.organizationId },
-      select: { id: true, name: true },
-      orderBy: { name: 'asc' },
     }),
     isManagement(me.role)
       ? prisma.user.findMany({
@@ -109,14 +95,14 @@ export async function getMachineFormOptions() {
       : Promise.resolve([]),
   ])
   return {
-    yarns: yarns.map(y => ({
-      id: y.id,
-      name: y.name,
-      color: y.color,
-      stockKg: roundQty(y.stockLevels.reduce((acc, sl) => acc + sl.quantity, 0)),
-    })),
-    models,
-    warehouses,
+    yarns: yarns
+      .map(y => ({
+        id: y.id,
+        name: y.name,
+        color: y.color,
+        stockKg: roundQty(y.stockLevels.reduce((acc, sl) => acc + sl.quantity, 0)),
+      }))
+      .filter(y => y.stockKg > 0),
     workers: workers.map(w => ({ id: w.id, name: w.name ?? w.email })),
     canChooseWorker: isManagement(me.role),
   }
@@ -146,7 +132,7 @@ export const createMachines = action(async function createMachines(formData: For
   await prisma.machine.createMany({
     data: numbers.map(number => ({ number, group: input.group, organizationId: me.organizationId })),
   })
-  revalidateMachines()
+  revalidateWorkshop()
 })
 
 export const setMachineActive = action(async function setMachineActive(machineId: string, active: boolean) {
@@ -155,345 +141,169 @@ export const setMachineActive = action(async function setMachineActive(machineId
   const machine = await prisma.machine.findFirst({ where: { id: machineId, organizationId: me.organizationId } })
   if (!machine) throw new ActionError(t.errors.recordNotFound)
   if (!active) {
-    const open = await prisma.machineRun.count({ where: { machineId, status: 'OPEN' } })
-    if (open > 0) throw new ActionError(t.machines.busyMachines(String(machine.number)))
+    const knitting = await prisma.machineLoad.count({ where: { machineId, status: 'KNITTING' } })
+    if (knitting > 0) throw new ActionError(t.machines.busyMachines(String(machine.number)))
   }
   await prisma.machine.update({ where: { id: machine.id }, data: { isActive: active } })
-  revalidateMachines()
+  revalidateWorkshop()
 })
 
-/** Ipni stanokka berish: ombordan ayiriladi, stanok ishiga qo'shiladi */
-async function issueYarn(
-  tx: Tx,
-  params: { me: SessionUser; runId: string; machineNumber: number; yarnId: string; yarnCost: unknown; warehouseId: string; kg: number; workerId: string },
-) {
-  const t = await getT()
-  const locale = await getLocale()
-  const taken = await takeStock(tx, params.yarnId, params.warehouseId, params.kg)
-  if (!taken.ok) {
-    const yarn = await tx.product.findUniqueOrThrow({ where: { id: params.yarnId }, select: { name: true } })
-    throw new ActionError(t.inventory.notEnough(yarn.name, `${formatNumber(taken.available, locale)} kg`))
-  }
-  await tx.machineRun.update({ where: { id: params.runId }, data: { issuedKg: { increment: params.kg } } })
-  await tx.machineRunEvent.create({
-    data: {
-      runId: params.runId, type: 'ISSUE', quantity: params.kg, workerId: params.workerId,
-      createdById: params.me.id, organizationId: params.me.organizationId,
-    },
-  })
-  await tx.stockMovement.create({
-    data: {
-      type: 'TO_MACHINE',
-      quantity: -params.kg,
-      productId: params.yarnId,
-      fromWarehouseId: params.warehouseId,
-      machineRunId: params.runId,
-      unitCost: params.yarnCost as number,
-      workerId: params.workerId,
-      creatorId: params.me.id,
-      organizationId: params.me.organizationId,
-      note: t.machines.issueNote(params.machineNumber),
-    },
-  })
-}
-
 /**
- * Bir nechta stanokni bir xil ip, model va grammda yurgizish. Har biriga
- * belgilangan kg ip beriladi (0 bo'lsa — keyin "Ip qo'shish" bilan).
+ * Stanoklarga ip qo'yish: har biriga bir xil ip, gramm va kg. Ip ombordan
+ * ayiriladi; belgilangan soatdan keyin paypoq o'zi tayyor partiyaga o'tadi.
  */
-export const startRuns = action(async function startRuns(formData: FormData) {
+export const loadMachines = action(async function loadMachines(formData: FormData) {
   const me = await getSessionUser()
   const t = await getT()
+  const locale = await getLocale()
   const f = fields(t)
   const M = t.machines
   const input = parseForm(z.object({
     machines: f.text(M.machineNumbers, 500),
     yarnId: f.id(M.yarn),
-    productId: f.id(M.model),
     gramsPerSock: f.positive(M.gramsPerSock),
-    kgPerMachine: f.nonNegative(M.kgPerMachine),
+    kgPerMachine: f.positive(M.kgPerMachine),
     workerId: f.optionalId(),
-    rawWarehouseId: f.optionalId(),
-    goodsWarehouseId: f.optionalId(),
   }), formData)
   if (input.gramsPerSock > 500) throw new ActionError(M.gramTooBig)
 
   const numbers = parseMachineNumbers(input.machines)
   if (!numbers) throw new ActionError(M.invalidNumbers)
 
-  const [yarn, model, firstWarehouse] = await Promise.all([
-    prisma.product.findFirst({ where: { id: input.yarnId, organizationId: me.organizationId } }),
-    prisma.product.findFirst({ where: { id: input.productId, organizationId: me.organizationId } }),
-    prisma.warehouse.findFirst({ where: { organizationId: me.organizationId }, orderBy: { name: 'asc' }, select: { id: true } }),
-  ])
+  const yarn = await prisma.product.findFirst({ where: { id: input.yarnId, organizationId: me.organizationId } })
   if (!yarn || !yarn.isRawMaterial) throw new ActionError(M.notYarn)
-  if (!model || model.isRawMaterial) throw new ActionError(M.notSock)
-  const rawWarehouseId = input.rawWarehouseId ?? firstWarehouse?.id
-  const goodsWarehouseId = input.goodsWarehouseId ?? firstWarehouse?.id
-  if (!rawWarehouseId || !goodsWarehouseId) throw new ActionError(t.errors.warehouseNotFound)
-  await assertOrgWarehouse(me.organizationId, rawWarehouseId)
-  await assertOrgWarehouse(me.organizationId, goodsWarehouseId)
   const workerId = await resolveWorker(me, input.workerId)
   const kg = roundQty(input.kgPerMachine)
 
-  const count = await serializable(async (tx) => {
+  await serializable(async (tx) => {
     const machines = await tx.machine.findMany({
       where: { organizationId: me.organizationId, number: { in: numbers }, isActive: true },
-      include: { runs: { where: { status: 'OPEN' }, select: { id: true } } },
+      orderBy: { number: 'asc' },
     })
     const found = new Set(machines.map(m => m.number))
     const missing = numbers.filter(n => !found.has(n))
     if (missing.length > 0) throw new ActionError(M.unknownMachines(missing.join(", ")))
-    const busy = machines.filter(m => m.runs.length > 0).map(m => m.number)
-    if (busy.length > 0) throw new ActionError(M.busyMachines(busy.join(", ")))
 
-    for (const machine of machines) {
-      const run = await tx.machineRun.create({
-        data: {
-          machineId: machine.id,
-          yarnId: yarn.id,
-          productId: model.id,
-          gramsPerSock: input.gramsPerSock,
-          rawWarehouseId,
-          goodsWarehouseId,
-          startedById: me.id,
-          organizationId: me.organizationId,
-        },
-      })
-      if (kg > 0) {
-        await issueYarn(tx, {
-          me, runId: run.id, machineNumber: machine.number, yarnId: yarn.id, yarnCost: yarn.costPrice,
-          warehouseId: rawWarehouseId, kg, workerId,
-        })
-      }
-    }
-    return machines.length
-  })
+    const org = await tx.organization.findUniqueOrThrow({ where: { id: me.organizationId }, select: { autoTransferHours: true } })
+    const warehouseId = await defaultWarehouseId(tx, me.organizationId)
+    const total = roundQty(kg * machines.length)
+    const taken = await takeStock(tx, yarn.id, warehouseId, total)
+    if (!taken.ok) throw new ActionError(t.inventory.notEnough(yarn.name, `${formatNumber(taken.available, locale)} kg`))
 
-  if (kg > 0) await checkLowStock(yarn.id, me.organizationId, kg * count)
-  revalidateMachines()
-})
-
-async function findOpenRun(tx: Tx, me: SessionUser, runId: string) {
-  const t = await getT()
-  const run = await tx.machineRun.findFirst({
-    where: { id: runId, organizationId: me.organizationId },
-    include: {
-      machine: { select: { number: true } },
-      yarn: { select: { id: true, costPrice: true } },
-      product: true,
-    },
-  })
-  if (!run) throw new ActionError(t.machines.runNotFound)
-  if (run.status !== 'OPEN') throw new ActionError(t.machines.runClosed)
-  return run
-}
-
-/** Ishlayotgan stanokka ip qo'shish */
-export const addYarnToRun = action(async function addYarnToRun(formData: FormData) {
-  const me = await getSessionUser()
-  const t = await getT()
-  const f = fields(t)
-  const input = parseForm(z.object({
-    runId: f.id(t.machines.runNotFound),
-    kg: f.positive(t.yarn.kg),
-    workerId: f.optionalId(),
-  }), formData)
-  const workerId = await resolveWorker(me, input.workerId)
-  const kg = roundQty(input.kg)
-
-  const yarnId = await serializable(async (tx) => {
-    const run = await findOpenRun(tx, me, input.runId)
-    await issueYarn(tx, {
-      me, runId: run.id, machineNumber: run.machine.number, yarnId: run.yarnId, yarnCost: run.yarn.costPrice,
-      warehouseId: run.rawWarehouseId, kg, workerId,
+    const loadedAt = new Date()
+    const readyAt = readyAtFor(loadedAt, org.autoTransferHours)
+    await tx.machineLoad.createMany({
+      data: machines.map(m => ({
+        machineId: m.id,
+        yarnId: yarn.id,
+        gramsPerSock: input.gramsPerSock,
+        kg,
+        loadedAt,
+        readyAt,
+        workerId,
+        createdById: me.id,
+        organizationId: me.organizationId,
+      })),
     })
-    return run.yarnId
+    await tx.stockMovement.create({
+      data: {
+        type: 'TO_MACHINE',
+        quantity: -total,
+        productId: yarn.id,
+        fromWarehouseId: warehouseId,
+        workerId,
+        creatorId: me.id,
+        organizationId: me.organizationId,
+        note: M.loadNote(input.machines, String(input.gramsPerSock)),
+      },
+    })
   })
-  await checkLowStock(yarnId, me.organizationId, kg)
-  revalidateMachines()
+  revalidateWorkshop()
 })
 
-/**
- * Sanoq: tayyor paypoq omborga qo'shiladi, ishchiga ishbay haq yoziladi.
- * Bir juft tannarxi = gramm bo'yicha ip (o'rtacha narxda) + ishbay haq.
- */
-async function applyCount(tx: Tx, me: SessionUser, runId: string, pairs: number, workerId: string) {
+async function findKnittingLoad(me: SessionUser, loadId: string) {
   const t = await getT()
-  const run = await findOpenRun(tx, me, runId)
-  const product = await tx.product.findUniqueOrThrow({ where: { id: run.productId } })
-  const wage = Number(product.productionWage ?? 0)
-  const unitCost = roundMoney(kgPerPair(run.gramsPerSock) * Number(run.yarn.costPrice) + wage)
-
-  const qtyBefore = await totalStock(tx, product.id)
-  await addStock(tx, product.id, run.goodsWarehouseId, pairs)
-  await applyIncomingCost(tx, product, qtyBefore, pairs, unitCost)
-
-  await tx.machineRun.update({ where: { id: run.id }, data: { countedPairs: { increment: pairs } } })
-  await tx.machineRunEvent.create({
-    data: { runId: run.id, type: 'COUNT', quantity: pairs, workerId, createdById: me.id, organizationId: me.organizationId },
+  const load = await prisma.machineLoad.findFirst({
+    where: { id: loadId, organizationId: me.organizationId },
+    include: { machine: { select: { number: true } } },
   })
-  await tx.stockMovement.create({
-    data: {
-      type: 'PRODUCTION',
-      quantity: pairs,
-      productId: product.id,
-      toWarehouseId: run.goodsWarehouseId,
-      machineRunId: run.id,
-      workerId,
-      unitCost,
-      unitWage: wage,
-      creatorId: me.id,
-      organizationId: me.organizationId,
-      note: t.machines.countNote(run.machine.number, String(run.gramsPerSock)),
-    },
-  })
+  if (!load) throw new ActionError(t.errors.recordNotFound)
+  if (load.status !== 'KNITTING') throw new ActionError(t.machines.loadNotKnitting)
+  return load
 }
 
-export const recordCount = action(async function recordCount(formData: FormData) {
-  const me = await getSessionUser()
-  const t = await getT()
-  const f = fields(t)
-  const input = parseForm(z.object({
-    runId: f.id(t.machines.runNotFound),
-    pairs: f.positive(t.machines.countPairs),
-    workerId: f.optionalId(),
-  }), formData)
-  const workerId = await resolveWorker(me, input.workerId)
-  await serializable(tx => applyCount(tx, me, input.runId, roundQty(input.pairs), workerId))
-  revalidateMachines()
+/** Muddatidan oldin tayyor: paypoq hozir omborga o'tadi */
+export const finishLoadNow = action(async function finishLoadNow(loadId: string) {
+  const me = await requireRole('ADMIN', 'MANAGER')
+  await findKnittingLoad(me, loadId)
+  const now = new Date()
+  await prisma.machineLoad.updateMany({ where: { id: loadId, status: 'KNITTING' }, data: { readyAt: now } })
+  await settleDueLoads(me.organizationId, now)
+  revalidateWorkshop()
 })
 
-/** Smena yakuni: bir nechta stanok sanog'ini birdan. Maydonlar: count_<runId>, worker_<runId> */
-export const recordShiftCounts = action(async function recordShiftCounts(formData: FormData) {
+/** Xato qo'yilgan ip: yuklama bekor, ip omborga qaytadi */
+export const cancelLoad = action(async function cancelLoad(loadId: string) {
   const me = await requireRole('ADMIN', 'MANAGER')
   const t = await getT()
-  const f = fields(t)
-  const entries: { runId: string; pairs: number; workerId?: string }[] = []
-  for (const [key, value] of formData.entries()) {
-    if (!key.startsWith("count_") || typeof value !== "string" || value.trim() === "") continue
-    const runId = key.slice("count_".length)
-    const pairs = parseInput(f.positive(t.machines.countPairs), value)
-    const worker = formData.get(`worker_${runId}`)
-    entries.push({ runId, pairs: roundQty(pairs), workerId: typeof worker === "string" && worker ? worker : undefined })
-  }
-  if (entries.length === 0) throw new ActionError(t.machines.nothingToSave)
-
-  const resolved = await Promise.all(entries.map(async e => ({ ...e, workerId: await resolveWorker(me, e.workerId) })))
-  await serializable(async (tx) => {
-    for (const e of resolved) await applyCount(tx, me, e.runId, e.pairs, e.workerId)
-  })
-  revalidateMachines()
-})
-
-/** Stanok ishini yakunlash: qolgan ip omborga qaytadi, ixtiyoriy oxirgi sanoq */
-export const closeRun = action(async function closeRun(formData: FormData) {
-  const me = await getSessionUser()
-  const t = await getT()
-  const locale = await getLocale()
-  const f = fields(t)
-  const M = t.machines
-  const input = parseForm(z.object({
-    runId: f.id(M.runNotFound),
-    leftoverKg: f.nonNegative(M.leftoverKg),
-    finalPairs: f.optionalNonNegative(M.finalCount),
-    workerId: f.optionalId(),
-  }), formData)
-  const workerId = await resolveWorker(me, input.workerId)
-  const leftover = roundQty(input.leftoverKg)
+  const load = await findKnittingLoad(me, loadId)
 
   await serializable(async (tx) => {
-    if (input.finalPairs && input.finalPairs > 0) {
-      await applyCount(tx, me, input.runId, roundQty(input.finalPairs), workerId)
-    }
-    const run = await findOpenRun(tx, me, input.runId)
-    if (leftover > run.issuedKg + 0.0001) throw new ActionError(M.leftoverTooMuch(formatNumber(run.issuedKg, locale)))
-
-    if (leftover > 0) {
-      await addStock(tx, run.yarnId, run.rawWarehouseId, leftover)
-      await tx.machineRunEvent.create({
-        data: { runId: run.id, type: 'RETURN', quantity: leftover, workerId, createdById: me.id, organizationId: me.organizationId },
-      })
-      await tx.stockMovement.create({
-        data: {
-          type: 'FROM_MACHINE',
-          quantity: leftover,
-          productId: run.yarnId,
-          toWarehouseId: run.rawWarehouseId,
-          machineRunId: run.id,
-          unitCost: run.yarn.costPrice,
-          workerId,
-          creatorId: me.id,
-          organizationId: me.organizationId,
-          note: M.returnNote(run.machine.number),
-        },
-      })
-    }
-    await tx.machineRun.update({
-      where: { id: run.id },
-      data: { status: 'CLOSED', closedAt: new Date(), closedById: me.id, leftoverKg: leftover },
+    const claimed = await tx.machineLoad.updateMany({
+      where: { id: load.id, status: 'KNITTING' },
+      data: { status: 'CANCELLED', doneAt: new Date() },
+    })
+    if (claimed.count === 0) throw new ActionError(t.machines.loadNotKnitting)
+    const warehouseId = await defaultWarehouseId(tx, me.organizationId)
+    await addStock(tx, load.yarnId, warehouseId, load.kg)
+    await tx.stockMovement.create({
+      data: {
+        type: 'FROM_MACHINE',
+        quantity: load.kg,
+        productId: load.yarnId,
+        toWarehouseId: warehouseId,
+        workerId: load.workerId,
+        creatorId: me.id,
+        organizationId: me.organizationId,
+        note: t.machines.cancelNote(load.machine.number),
+      },
     })
   })
-  revalidateMachines()
+  revalidateWorkshop()
 })
 
 /**
- * Davr bo'yicha hisobot (sukut bo'yicha — bugun): har bir stanok ishi bo'yicha
- * shu davrda berilgan ip, sanalgan paypoq va ipdan kutilgan son.
+ * Davr bo'yicha hisobot (sukut bo'yicha — bugun): har bir stanokka qo'yilgan ip
+ * va undan chiqadigan paypoq (dona). Bekor qilinganlar kirmaydi.
  */
 export async function getMachineReport(params: DateRangeParams) {
   const me = await requireRole('ADMIN', 'MANAGER')
-  const createdAt = parseDateRange(params) ?? { gte: startOfTashkentDayFor(new Date()) }
-  const events = await prisma.machineRunEvent.findMany({
-    where: { organizationId: me.organizationId, createdAt },
+  const loadedAt = parseDateRange(params) ?? { gte: startOfTashkentDayFor(new Date()) }
+  const loads = await prisma.machineLoad.findMany({
+    where: { organizationId: me.organizationId, status: { not: 'CANCELLED' }, loadedAt },
     include: {
-      run: {
-        include: {
-          machine: { select: { number: true, group: true } },
-          yarn: { select: { name: true, color: true } },
-          product: { select: { name: true } },
-        },
-      },
+      machine: { select: { number: true, group: true } },
+      yarn: { select: { name: true, color: true } },
     },
   })
 
-  const byRun = new Map<string, { issued: number; returned: number; counted: number; run: (typeof events)[number]["run"] }>()
-  for (const e of events) {
-    const row = byRun.get(e.runId) ?? { issued: 0, returned: 0, counted: 0, run: e.run }
-    if (e.type === 'ISSUE') row.issued += e.quantity
-    else if (e.type === 'RETURN') row.returned += e.quantity
-    else row.counted += e.quantity
-    byRun.set(e.runId, row)
+  // Stanok + ip + gramm bo'yicha bitta qator
+  const rows = new Map<string, { machineNumber: number; group: string; yarnName: string; yarnColor: string | null; gramsPerSock: number; kg: number; socks: number; knitting: boolean }>()
+  for (const l of loads) {
+    const key = `${l.machineId}|${l.yarnId}|${l.gramsPerSock}`
+    const row = rows.get(key) ?? {
+      machineNumber: l.machine.number, group: l.machine.group, yarnName: l.yarn.name, yarnColor: l.yarn.color,
+      gramsPerSock: l.gramsPerSock, kg: 0, socks: 0, knitting: false,
+    }
+    row.kg = roundQty(row.kg + l.kg)
+    row.socks += socksFromKg(l.kg, l.gramsPerSock)
+    row.knitting ||= l.status === 'KNITTING'
+    rows.set(key, row)
   }
-
-  const rows = [...byRun.values()]
-    .map(({ issued, returned, counted, run }) => {
-      const result = evaluateRun({ issuedKg: issued, countedPairs: counted, leftoverKg: returned, gramsPerSock: run.gramsPerSock })
-      return {
-        runId: run.id,
-        machineNumber: run.machine.number,
-        group: run.machine.group,
-        yarnName: run.yarn.name,
-        yarnColor: run.yarn.color,
-        productName: run.product.name,
-        gramsPerSock: run.gramsPerSock,
-        status: run.status,
-        issuedKg: roundQty(issued - returned),
-        countedPairs: counted,
-        expectedPairs: result.expectedPairs,
-        differencePairs: result.differencePairs,
-        efficiencyPercent: result.efficiencyPercent,
-      }
-    })
-    .sort((a, b) => a.machineNumber - b.machineNumber)
-
-  const totals = rows.reduce(
-    (acc, r) => ({
-      issuedKg: roundQty(acc.issuedKg + r.issuedKg),
-      countedPairs: acc.countedPairs + r.countedPairs,
-      expectedPairs: acc.expectedPairs + r.expectedPairs,
-    }),
-    { issuedKg: 0, countedPairs: 0, expectedPairs: 0 },
+  const sorted = [...rows.values()].sort((a, b) => a.machineNumber - b.machineNumber || a.gramsPerSock - b.gramsPerSock)
+  const totals = sorted.reduce(
+    (acc, r) => ({ kg: roundQty(acc.kg + r.kg), socks: acc.socks + r.socks }),
+    { kg: 0, socks: 0 },
   )
-  return { rows, totals }
+  return { rows: sorted, totals, machines: new Set(sorted.map(r => r.machineNumber)).size }
 }

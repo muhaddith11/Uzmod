@@ -1,3 +1,4 @@
+import { requireModule } from "@/lib/modules"
 import Link from "next/link"
 import { getProducts, createProduct, deleteProduct, type ProductRow } from "@/lib/actions/products"
 import { getWarehouses } from "@/lib/actions/warehouses"
@@ -26,6 +27,7 @@ import { Package2Icon, PlusIcon, BoxesIcon, LayersIcon, ArrowDownLeftIcon, Arrow
 type Option = { id: string; name: string }
 
 export default async function InventoryPage() {
+  await requireModule("legacy")
   const me = await getSessionUser()
   const manager = isManagement(me.role)
   const modules = await getEnabledModules()

@@ -8,26 +8,28 @@ import { getEnabledModules, type ModuleKey } from "@/lib/modules"
 import type { Messages } from "@/i18n/messages"
 import {
   Package2Icon, BoxIcon, HammerIcon, DiscIcon, HistoryIcon, LogOutIcon, TruckIcon,
-  UserIcon, ShoppingBagIcon, UsersIcon, WarehouseIcon, BarChart3Icon, ClockIcon, CogIcon, PackageOpenIcon, Settings2Icon
+  UserIcon, ShoppingBagIcon, UsersIcon, WarehouseIcon, BarChart3Icon, ClockIcon, CogIcon, Settings2Icon, WalletIcon
 } from "lucide-react"
 
 // Navigatsiya — auth.config.ts dagi ROUTE_ROLES bilan bir xil ruxsatlar.
 // `roles` bo'lmasa — hamma ko'radi.
 const NAV_ITEMS: { href: string; label: keyof Messages["nav"]; icon: React.ReactNode; roles?: Role[]; module?: ModuleKey }[] = [
+  { href: "/stock", label: "stock", icon: <WarehouseIcon className="w-4 h-4" />, roles: ['ADMIN', 'MANAGER'] },
   { href: "/machines", label: "machines", icon: <CogIcon className="w-4 h-4" /> },
-  { href: "/yarn", label: "yarn", icon: <PackageOpenIcon className="w-4 h-4" />, roles: ['ADMIN', 'MANAGER'] },
-  { href: "/inventory", label: "inventory", icon: <Package2Icon className="w-4 h-4" /> },
-  { href: "/rolls", label: "rolls", icon: <DiscIcon className="w-4 h-4" />, module: "rolls" },
-  { href: "/production", label: "production", icon: <HammerIcon className="w-4 h-4" />, module: "bomProduction" },
   { href: "/sales", label: "sales", icon: <ShoppingBagIcon className="w-4 h-4" />, roles: ['ADMIN', 'MANAGER'], module: "sales" },
-  { href: "/customers", label: "customers", icon: <UsersIcon className="w-4 h-4" />, roles: ['ADMIN', 'MANAGER'], module: "sales" },
-  { href: "/suppliers", label: "suppliers", icon: <TruckIcon className="w-4 h-4" />, roles: ['ADMIN', 'MANAGER'], module: "suppliers" },
+  { href: "/finance", label: "finance", icon: <WalletIcon className="w-4 h-4" />, roles: ['ADMIN'], module: "finance" },
   { href: "/workers", label: "workers", icon: <UserIcon className="w-4 h-4" />, roles: ['ADMIN', 'MANAGER'] },
   { href: "/attendance", label: "attendance", icon: <ClockIcon className="w-4 h-4" />, roles: ['ADMIN', 'MANAGER'] },
-  { href: "/warehouses", label: "warehouses", icon: <WarehouseIcon className="w-4 h-4" />, roles: ['ADMIN'] },
-  { href: "/finance", label: "finance", icon: <BoxIcon className="w-4 h-4" />, roles: ['ADMIN'], module: "finance" },
-  { href: "/reports", label: "reports", icon: <BarChart3Icon className="w-4 h-4" />, roles: ['ADMIN'], module: "finance" },
-  { href: "/history", label: "history", icon: <HistoryIcon className="w-4 h-4" /> },
+  { href: "/rolls", label: "rolls", icon: <DiscIcon className="w-4 h-4" />, module: "rolls" },
+  { href: "/production", label: "production", icon: <HammerIcon className="w-4 h-4" />, module: "bomProduction" },
+  { href: "/suppliers", label: "suppliers", icon: <TruckIcon className="w-4 h-4" />, roles: ['ADMIN', 'MANAGER'], module: "suppliers" },
+  // Eski umumiy ombor tizimi (sukut bo'yicha yashirin)
+  { href: "/inventory", label: "inventory", icon: <Package2Icon className="w-4 h-4" />, module: "legacy" },
+  { href: "/warehouses", label: "warehouses", icon: <BoxIcon className="w-4 h-4" />, roles: ['ADMIN'], module: "legacy" },
+  { href: "/sales/products", label: "productSales", icon: <ShoppingBagIcon className="w-4 h-4" />, roles: ['ADMIN', 'MANAGER'], module: "legacy" },
+  { href: "/customers", label: "customers", icon: <UsersIcon className="w-4 h-4" />, roles: ['ADMIN', 'MANAGER'], module: "legacy" },
+  { href: "/reports", label: "reports", icon: <BarChart3Icon className="w-4 h-4" />, roles: ['ADMIN'], module: "legacy" },
+  { href: "/history", label: "history", icon: <HistoryIcon className="w-4 h-4" />, module: "legacy" },
   { href: "/settings", label: "settings", icon: <Settings2Icon className="w-4 h-4" />, roles: ['ADMIN'] },
 ]
 

@@ -1,4 +1,5 @@
 import { INTL_LOCALE, type Locale } from "@/i18n/locales"
+import { tashkentDateKey, tashkentTimeKey } from "@/lib/tz"
 
 // O'zbekiston vaqti (UTC+5, yozgi vaqt yo'q). Vercel serveri UTC'da ishlaydi —
 // sanalar shu zonada ko'rsatilmasa, kechki yozuvlar ertasi kunga o'tib qoladi.
@@ -74,4 +75,11 @@ export function formatTime(value: Date | string, locale: Locale): string {
     minute: "2-digit",
     hour12: false,
   }).format(new Date(value))
+}
+
+/** "22.10 08:00" — Toshkent vaqtida, yilsiz (tilga bog'liq emas — server va brauzerda bir xil) */
+export function formatDayTime(value: Date | string): string {
+  const date = new Date(value)
+  const [, month, day] = tashkentDateKey(date).split("-")
+  return `${day}.${month} ${tashkentTimeKey(date)}`
 }

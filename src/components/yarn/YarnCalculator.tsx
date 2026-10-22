@@ -4,11 +4,11 @@ import { useState } from "react"
 import { Input } from "@/components/ui/input"
 import { useLocale, useT } from "@/i18n/client"
 import { formatNumber } from "@/lib/format"
-import { colorHex, pairsFromKg } from "@/lib/domain/machines"
+import { colorHex, socksFromKg } from "@/lib/domain/machines"
 
 const PRESETS = [20, 25, 30]
 
-/** Ombordagi har bir ipdan necha juft paypoq chiqishi — bir nechta gramm bo'yicha */
+/** Ombordagi har bir ipdan necha dona paypoq chiqishi — bir nechta gramm bo'yicha */
 export function YarnCalculator({ yarns }: { yarns: { id: string; name: string; color: string; stockKg: number }[] }) {
   const t = useT()
   const locale = useLocale()
@@ -54,14 +54,14 @@ export function YarnCalculator({ yarns }: { yarns: { id: string; name: string; c
                 </td>
                 <td className="py-2 px-3 text-right font-mono">{formatNumber(y.stockKg, locale)}</td>
                 {grams.map(g => (
-                  <td key={g} className="py-2 px-3 text-right font-mono">{Y.pairs(fmt(pairsFromKg(Math.max(y.stockKg, 0), g)))}</td>
+                  <td key={g} className="py-2 px-3 text-right font-mono">{Y.socks(fmt(socksFromKg(Math.max(y.stockKg, 0), g)))}</td>
                 ))}
               </tr>
             ))}
             <tr className="font-black text-gray-900">
               <td className="py-2 pr-3">{Y.total}</td>
               <td className="py-2 px-3 text-right font-mono">{formatNumber(totalKg, locale)}</td>
-              {grams.map(g => <td key={g} className="py-2 px-3 text-right font-mono">{Y.pairs(fmt(pairsFromKg(totalKg, g)))}</td>)}
+              {grams.map(g => <td key={g} className="py-2 px-3 text-right font-mono">{Y.socks(fmt(socksFromKg(totalKg, g)))}</td>)}
             </tr>
           </tbody>
         </table>

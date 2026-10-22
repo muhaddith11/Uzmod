@@ -25,7 +25,9 @@ model Organization {
   geoLng           Float?
   geoRadiusM       Int?
   // Yashirilgan bo'limlar (vergul bilan): suppliers, rolls, bomProduction, sales, finance ...
-  disabledModules  String @default("suppliers,rolls,bomProduction")
+  disabledModules  String @default("suppliers,rolls,bomProduction,legacy")
+  // Stanokka ip qo'yilgandan necha soat o'tgach paypoq omborga (qadoqlangan) o'tadi
+  autoTransferHours Int   @default(24)
 
   users            User[]
   products         Product[]
@@ -45,6 +47,10 @@ model Organization {
   machineEvents    MachineRunEvent[]
   devices          AttendanceDevice[]
   devicePunches    DevicePunch[]
+  batches          Batch[]
+  batchMovements   BatchMovement[]
+  machineLoads     MachineLoad[]
+  stockSales       StockSale[]
 }
 
 // 2. Foydalanuvchilar (Auth uchun)
@@ -84,6 +90,9 @@ model User {
   machineWork             MachineRunEvent[] @relation("MachineEventWorker")
   machineEventsCreated    MachineRunEvent[] @relation("MachineEventCreator")
   devicePunches           DevicePunch[]
+  machineLoads            MachineLoad[]     @relation("LoadWorker")
+  expensesAsEmployee      Expense[]         @relation("ExpenseEmployee")
+  stockSalesCreated       StockSale[]       @relation("StockSaleCreator")
 
   @@unique([organizationId, deviceUserId])
   @@index([organizationId])
@@ -147,6 +156,9 @@ model Product {
   rolls       Roll[]
   yarnRuns    MachineRun[] @relation("RunYarn")
   sockRuns    MachineRun[] @relation("RunProduct")
+  loads       MachineLoad[] @relation("LoadYarn")
+  batches     Batch[]       @relation("BatchYarn")
+  yarnSales   StockSale[]   @relation("SaleYarn")
 
   @@index([organizationId])
   @@index([organizationId, isRawMaterial])
@@ -273,6 +285,7 @@ model Customer {
   organizationId String
   organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   sales          Sale[]
+  stockSales     StockSale[]
   debtPayments   DebtPayment[]
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
@@ -409,6 +422,10 @@ model Expense {
   createdById String?
   createdBy   User?   @relation("ExpenseCreator", fields: [createdById], references: [id], onDelete: SetNull)
 
+  // Ish haqi bo'lsa — qaysi xodimga
+  employeeId String?
+  employee   User?   @relation("ExpenseEmployee", fields: [employeeId], references: [id], onDelete: SetNull)
+
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime     @default(now())
@@ -521,7 +538,8 @@ model Machine {
   note     String?
   isActive Boolean @default(true)
 
-  runs MachineRun[]
+  runs  MachineRun[]
+  loads MachineLoad[]
 
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -639,4 +657,124 @@ model DevicePunch {
 
   @@unique([deviceId, pin, punchedAt])
   @@index([organizationId, punchedAt])
+}
+
+// 18. Stanokka ip yuklash — belgilangan soatdan keyin avtomatik tayyor partiyaga o'tadi
+model MachineLoad {
+  id           String     @id @default(cuid())
+  machineId    String
+  machine      Machine    @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  yarnId       String
+  yarn         Product    @relation("LoadYarn", fields: [yarnId], references: [id])
+  // Bitta paypoq (dona) og'irligi, gramm
+  gramsPerSock Float
+  kg           Float
+  status       LoadStatus @default(KNITTING)
+  loadedAt     DateTime   @default(now())
+  readyAt      DateTime
+  doneAt       DateTime?
+
+  batchId String?
+  batch   Batch?  @relation(fields: [batchId], references: [id], onDelete: SetNull)
+
+  workerId    String?
+  worker      User?   @relation("LoadWorker", fields: [workerId], references: [id], onDelete: SetNull)
+  createdById String?
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status, readyAt])
+  @@index([machineId, status])
+}
+
+enum LoadStatus {
+  KNITTING
+  DONE
+  CANCELLED
+}
+
+// 19. Tayyor paypoq partiyasi: sana (omborga kelgan kun) + ip + gramm
+model Batch {
+  id           String  @id @default(cuid())
+  // YYYY-MM-DD, Toshkent
+  date         String
+  yarnId       String
+  yarn         Product @relation("BatchYarn", fields: [yarnId], references: [id])
+  gramsPerSock Float
+  // Hozir omborda: tayyor (qadoqlangan) va brak, kg
+  finishedKg   Float   @default(0)
+  defectKg     Float   @default(0)
+  // Jami ishlab chiqarilgan, kg
+  producedKg   Float   @default(0)
+
+  loads     MachineLoad[]
+  movements BatchMovement[]
+  sales     StockSale[]
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, date, yarnId, gramsPerSock])
+  @@index([organizationId])
+}
+
+model BatchMovement {
+  id      String            @id @default(cuid())
+  batchId String
+  batch   Batch             @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  type    BatchMovementType
+  kg      Float
+  note    String?
+  saleId  String?
+
+  createdById    String?
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@index([batchId])
+  @@index([organizationId, createdAt])
+}
+
+enum BatchMovementType {
+  PRODUCED
+  DEFECT
+  SALE
+  SALE_CANCEL
+}
+
+// 20. Ombordan sotuv: ip yoki tayyor partiya (yoki brak) — kg va summa, nasiya bilan
+model StockSale {
+  id   String        @id @default(cuid())
+  kind StockSaleKind
+
+  yarnId  String?
+  yarn    Product? @relation("SaleYarn", fields: [yarnId], references: [id])
+  batchId String?
+  batch   Batch?   @relation(fields: [batchId], references: [id])
+
+  kg          Float
+  totalAmount Decimal @db.Decimal(15, 2)
+  paidAmount  Decimal @db.Decimal(15, 2)
+
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  note       String?
+
+  createdById String?
+  createdBy   User?   @relation("StockSaleCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, createdAt])
+}
+
+enum StockSaleKind {
+  YARN
+  FINISHED
+  DEFECT
 }

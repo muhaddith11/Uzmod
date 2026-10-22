@@ -132,7 +132,7 @@ export const createSale = action(async function createSale(formData: FormData) {
 
   revalidatePath("/inventory")
   revalidatePath("/customers")
-  revalidatePath("/sales")
+  revalidatePath("/sales/products")
 })
 
 /**
@@ -193,7 +193,7 @@ export const cancelSale = action(async function cancelSale(formData: FormData) {
 
   revalidatePath("/inventory")
   revalidatePath("/customers")
-  revalidatePath("/sales")
+  revalidatePath("/sales/products")
   revalidatePath("/reports")
 })
 

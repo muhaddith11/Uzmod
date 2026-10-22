@@ -1,41 +1,61 @@
 'use client'
 
-import { useMemo, useState } from "react"
-import { addYarnToRun, closeRun, recordCount, setMachineActive } from "@/lib/actions/machines"
+import { useEffect, useMemo, useState } from "react"
+import { cancelLoad, finishLoadNow, setMachineActive } from "@/lib/actions/machines"
 import type { getMachinesBoard } from "@/lib/actions/machines"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { ActionForm } from "@/components/ui/action-form"
 import { ActionButton } from "@/components/ui/action-button"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Field, NativeSelect, inputClass } from "@/components/ui/field"
-import { StartRunsForm, type MachineFormOptions } from "@/components/machines/StartRunsForm"
+import { LoadMachinesForm, type LoadFormOptions } from "@/components/machines/LoadMachinesForm"
 import { useLocale, useT } from "@/i18n/client"
-import { formatNumber } from "@/lib/format"
-import { colorHex, pairsFromKg } from "@/lib/domain/machines"
-import { tashkentDateKey, tashkentTimeKey } from "@/lib/tz"
+import { formatDayTime, formatNumber } from "@/lib/format"
+import { colorHex, socksFromKg } from "@/lib/domain/machines"
 import { cn } from "@/lib/utils"
 
-type BoardMachine = Awaited<ReturnType<typeof getMachinesBoard>>[number]
-type Panel = "count" | "yarn" | "finish"
+type Board = Awaited<ReturnType<typeof getMachinesBoard>>
+type BoardMachine = Board["machines"][number]
+type BoardLoad = BoardMachine["loads"][number]
+
+/** Joriy vaqt faqat brauzerda (server va client vaqti farqi sahifani buzmasin), har daqiqada */
+function useNow(intervalMs = 60_000) {
+  const [now, setNow] = useState<number | null>(null)
+  useEffect(() => {
+    const tick = () => setNow(Date.now())
+    const first = setTimeout(tick, 0)
+    const id = setInterval(tick, intervalMs)
+    return () => {
+      clearTimeout(first)
+      clearInterval(id)
+    }
+  }, [intervalMs])
+  return now
+}
+
+function progressOf(load: BoardLoad, now: number) {
+  const start = new Date(load.loadedAt).getTime()
+  const end = new Date(load.readyAt).getTime()
+  return Math.min(Math.max((now - start) / Math.max(end - start, 1), 0), 1)
+}
 
 export function MachineBoard({
-  machines,
+  board,
   options,
   canManage,
 }: {
-  machines: BoardMachine[]
-  options: MachineFormOptions
+  board: Board
+  options: LoadFormOptions
   canManage: boolean
 }) {
   const t = useT()
+  const locale = useLocale()
   const M = t.machines
+  const now = useNow()
+  const { machines } = board
   const groups = useMemo(() => [...new Set(machines.map(m => m.group))].sort(), [machines])
   const [group, setGroup] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const visible = group ? machines.filter(m => m.group === group) : machines
   const selected = machines.find(m => m.id === selectedId) ?? null
-  const running = machines.filter(m => m.run).length
+  const running = machines.filter(m => m.loads.length > 0).length
 
   const chip = (active: boolean) =>
     cn("px-3 py-1.5 rounded-lg text-xs font-bold transition-colors", active ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")
@@ -55,36 +75,47 @@ export function MachineBoard({
       </div>
 
       <div className="grid grid-cols-5 sm:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2">
-        {visible.map(m => (
-          <button
-            key={m.id}
-            type="button"
-            onClick={() => setSelectedId(m.id)}
-            title={m.run ? `${m.run.yarnName} · ${m.run.productName} · ${m.run.gramsPerSock} g` : M.idle}
-            className={cn(
-              "relative rounded-xl border text-left p-2 h-[4.5rem] overflow-hidden transition-shadow hover:shadow-md focus-visible:ring-3 focus-visible:ring-indigo-500/40 outline-none",
-              !m.isActive ? "bg-gray-100 border-gray-200 opacity-50" : m.run ? "bg-white border-green-200" : "bg-white border-dashed border-gray-300"
-            )}
-          >
-            {m.run && <span className="absolute inset-x-0 top-0 h-1.5" style={{ background: colorHex(m.run.yarnColor) }} />}
-            <span className="block text-lg font-black text-gray-900 leading-tight">{m.number}</span>
-            {m.run ? (
-              <span className="block text-[10px] font-bold text-green-700 leading-tight truncate">{m.run.gramsPerSock} g · {m.run.countedPairs}</span>
-            ) : (
-              <span className="block text-[10px] text-gray-400 leading-tight">{m.isActive ? M.idle : M.off}</span>
-            )}
-          </button>
-        ))}
+        {visible.map(m => {
+          const first = m.loads[0]
+          const kg = m.loads.reduce((acc, l) => acc + l.kg, 0)
+          return (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => setSelectedId(m.id)}
+              title={first ? `${first.yarnName} · ${first.gramsPerSock} g` : M.idle}
+              aria-label={`${M.machine(m.number)}: ${first ? `${M.knitting}, ${first.yarnName}, ${first.gramsPerSock} g` : m.isActive ? M.idle : M.off}`}
+              className={cn(
+                "relative rounded-xl border text-left p-2 h-[4.5rem] overflow-hidden transition-shadow hover:shadow-md focus-visible:ring-3 focus-visible:ring-indigo-500/40 outline-none",
+                !m.isActive ? "bg-gray-100 border-gray-200 opacity-50" : first ? "bg-white border-green-200" : "bg-white border-dashed border-gray-300"
+              )}
+            >
+              {first && <span className="absolute inset-x-0 top-0 h-1.5" style={{ background: colorHex(first.yarnColor) }} />}
+              <span className="block text-lg font-black text-gray-900 leading-tight">{m.number}</span>
+              {first ? (
+                <span className="block text-[10px] font-bold text-green-700 leading-tight truncate">{first.gramsPerSock} g · {formatNumber(kg, locale)} kg</span>
+              ) : (
+                <span className="block text-[10px] text-gray-400 leading-tight">{m.isActive ? M.idle : M.off}</span>
+              )}
+              {first && now !== null && (
+                <span className="absolute inset-x-2 bottom-1.5 h-1 rounded-full bg-gray-100 overflow-hidden">
+                  <span className="block h-full bg-green-500" style={{ width: `${Math.round(progressOf(first, now) * 100)}%` }} />
+                </span>
+              )}
+            </button>
+          )
+        })}
       </div>
 
       <Dialog open={selected !== null} onOpenChange={open => !open && setSelectedId(null)}>
         <DialogContent className="bg-white sm:max-w-md max-h-[90vh] overflow-y-auto">
           {selected && (
             <MachineDetails
-              key={selected.id + (selected.run?.id ?? "")}
+              key={selected.id + selected.loads.map(l => l.id).join()}
               machine={selected}
               options={options}
               canManage={canManage}
+              now={now}
               onDone={() => setSelectedId(null)}
             />
           )}
@@ -98,18 +129,19 @@ function MachineDetails({
   machine,
   options,
   canManage,
+  now,
   onDone,
 }: {
   machine: BoardMachine
-  options: MachineFormOptions
+  options: LoadFormOptions
   canManage: boolean
+  now: number | null
   onDone: () => void
 }) {
   const t = useT()
   const locale = useLocale()
   const M = t.machines
-  const [panel, setPanel] = useState<Panel>("count")
-  const run = machine.run
+  const [adding, setAdding] = useState(machine.loads.length === 0)
   const fmt = (n: number) => formatNumber(n, locale)
 
   return (
@@ -120,89 +152,62 @@ function MachineDetails({
         </DialogTitle>
       </DialogHeader>
 
-      {!run ? (
-        machine.isActive ? (
-          <div className="space-y-4">
-            <StartRunsForm options={options} machineNumbers={String(machine.number)} lockNumbers onSuccess={onDone} />
-            {canManage && (
-              <ActionButton action={setMachineActive.bind(null, machine.id, false)} variant="ghost" className="w-full text-gray-500">
-                {M.setInactive}
-              </ActionButton>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <p className="text-sm text-gray-500">{M.off}</p>
-            {canManage && (
-              <ActionButton action={setMachineActive.bind(null, machine.id, true)} className="w-full">{M.setActive}</ActionButton>
-            )}
-          </div>
-        )
+      {!machine.isActive ? (
+        <div className="space-y-3">
+          <p className="text-sm text-gray-500">{M.off}</p>
+          {canManage && (
+            <ActionButton action={setMachineActive.bind(null, machine.id, true)} className="w-full">{M.setActive}</ActionButton>
+          )}
+        </div>
       ) : (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            <Info label={M.yarn} value={
-              <span className="inline-flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-full border border-gray-300" style={{ background: colorHex(run.yarnColor) }} />
-                {run.yarnName}
-              </span>
-            } />
-            <Info label={M.model} value={run.productName} />
-            <Info label={M.gramsPerSock} value={`${run.gramsPerSock} g · ${M.perKg(fmt(pairsFromKg(1, run.gramsPerSock)))}`} />
-            <Info label={M.issued} value={`${fmt(run.issuedKg)} kg`} />
-            <Info label={M.counted} value={t.yarn.pairs(fmt(run.countedPairs))} strong />
-            <Info label={M.expected} value={t.yarn.pairs(fmt(run.expectedPairs))} />
-            <Info label={M.efficiency} value={run.efficiencyPercent !== null ? `${run.efficiencyPercent}%` : t.common.none} />
-            <Info
-              label={M.since}
-              value={`${tashkentDateKey(new Date(run.startedAt)).slice(5).split("-").reverse().join(".")} ${tashkentTimeKey(new Date(run.startedAt))}${run.lastWorker ? ` · ${run.lastWorker}` : ""}`}
-            />
-          </div>
+          {machine.loads.map(load => {
+            const leftMs = now === null ? null : new Date(load.readyAt).getTime() - now
+            const leftMin = leftMs === null ? 0 : Math.max(Math.floor(leftMs / 60_000), 0)
+            return (
+              <div key={load.id} className="rounded-xl border border-green-100 bg-green-50/40 p-3 space-y-3">
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <Info label={M.yarn} value={
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="w-3 h-3 rounded-full border border-gray-300" style={{ background: colorHex(load.yarnColor) }} />
+                      {load.yarnName}
+                    </span>
+                  } />
+                  <Info label={M.gramsPerSock} value={`${load.gramsPerSock} g · ${M.perKg(fmt(socksFromKg(1, load.gramsPerSock)))}`} />
+                  <Info label={t.yarn.kg} value={`${fmt(load.kg)} kg`} />
+                  <Info label={M.expected} value={t.yarn.socks(fmt(load.socks))} strong />
+                  <Info label={M.loadedAt} value={`${formatDayTime(load.loadedAt)}${load.workerName ? ` · ${load.workerName}` : ""}`} />
+                  <Info
+                    label={M.readyAt}
+                    value={`${formatDayTime(load.readyAt)}${leftMs === null ? "" : leftMs > 0 ? ` · ${M.remaining(Math.floor(leftMin / 60), leftMin % 60)}` : ` · ${M.readyNow}`}`}
+                  />
+                </div>
+                {canManage && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <ActionButton action={finishLoadNow.bind(null, load.id)} confirmText={M.finishNowConfirm} className="w-full h-10 text-green-700 border-green-200">
+                      {M.finishNow}
+                    </ActionButton>
+                    <ActionButton action={cancelLoad.bind(null, load.id)} confirmText={M.cancelConfirm} variant="ghost" className="w-full h-10 text-gray-500 hover:text-rose-600">
+                      {M.cancel}
+                    </ActionButton>
+                  </div>
+                )}
+              </div>
+            )
+          })}
 
-          <div className="grid grid-cols-3 gap-1 rounded-xl bg-gray-100 p-1" role="tablist">
-            {(["count", "yarn", "finish"] as const).map(p => (
-              <button
-                key={p} type="button" role="tab" aria-selected={panel === p} onClick={() => setPanel(p)}
-                className={cn("h-9 rounded-lg text-xs font-bold", panel === p ? "bg-white shadow-sm text-gray-900" : "text-gray-500")}
-              >
-                {p === "count" ? M.count : p === "yarn" ? M.addYarn : M.finish}
-              </button>
-            ))}
-          </div>
+          {adding ? (
+            <LoadMachinesForm options={options} machineNumbers={String(machine.number)} lockNumbers onSuccess={onDone} />
+          ) : (
+            <button type="button" onClick={() => setAdding(true)} className="w-full h-10 rounded-xl border border-dashed border-gray-300 text-sm font-bold text-gray-600 hover:bg-gray-50">
+              {M.addMore}
+            </button>
+          )}
 
-          {panel === "count" && (
-            <ActionForm action={recordCount} onSuccess={onDone} className="space-y-3">
-              <input type="hidden" name="runId" value={run.id} />
-              <Field label={M.countPairs}>
-                <Input name="pairs" type="number" min="1" step="1" required inputMode="numeric" className={`${inputClass} text-lg`} />
-              </Field>
-              <WorkerSelect options={options} />
-              <Button type="submit" className="w-full h-11 bg-indigo-600 hover:bg-indigo-700 text-white font-bold">{M.count}</Button>
-            </ActionForm>
-          )}
-          {panel === "yarn" && (
-            <ActionForm action={addYarnToRun} onSuccess={onDone} className="space-y-3">
-              <input type="hidden" name="runId" value={run.id} />
-              <Field label={t.yarn.kg}>
-                <Input name="kg" type="number" min="0" step="0.01" required inputMode="decimal" className={`${inputClass} text-lg`} />
-              </Field>
-              <WorkerSelect options={options} />
-              <Button type="submit" className="w-full h-11 bg-teal-600 hover:bg-teal-700 text-white font-bold">{M.addYarn}</Button>
-            </ActionForm>
-          )}
-          {panel === "finish" && (
-            <ActionForm action={closeRun} onSuccess={onDone} className="space-y-3">
-              <input type="hidden" name="runId" value={run.id} />
-              <p className="text-xs text-gray-500">{M.finishHint}</p>
-              <Field label={M.leftoverKg}>
-                <Input name="leftoverKg" type="number" min="0" step="0.01" required inputMode="decimal" defaultValue="0" className={inputClass} />
-              </Field>
-              <Field label={M.finalCount}>
-                <Input name="finalPairs" type="number" min="0" step="1" inputMode="numeric" className={inputClass} />
-              </Field>
-              <WorkerSelect options={options} />
-              <Button type="submit" className="w-full h-11 bg-rose-600 hover:bg-rose-700 text-white font-bold">{M.finish}</Button>
-            </ActionForm>
+          {canManage && machine.loads.length === 0 && (
+            <ActionButton action={setMachineActive.bind(null, machine.id, false)} variant="ghost" className="w-full text-gray-500">
+              {M.setInactive}
+            </ActionButton>
           )}
         </div>
       )}
@@ -210,22 +215,9 @@ function MachineDetails({
   )
 }
 
-function WorkerSelect({ options }: { options: MachineFormOptions }) {
-  const t = useT()
-  if (!options.canChooseWorker) return null
-  return (
-    <Field label={t.common.worker}>
-      <NativeSelect name="workerId" defaultValue="">
-        <option value="">{t.common.none}</option>
-        {options.workers.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-      </NativeSelect>
-    </Field>
-  )
-}
-
 function Info({ label, value, strong }: { label: string; value: React.ReactNode; strong?: boolean }) {
   return (
-    <div className="rounded-lg bg-gray-50 p-2 min-w-0">
+    <div className="rounded-lg bg-white p-2 min-w-0">
       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
       <p className={cn("text-sm truncate", strong ? "font-black text-gray-900" : "font-semibold text-gray-700")}>{value}</p>
     </div>

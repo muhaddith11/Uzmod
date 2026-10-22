@@ -1,4 +1,5 @@
 import type { Attendance, Organization, Role } from "@prisma/client"
+import { socksFromKg } from "@/lib/domain/machines"
 import { prisma } from "@/lib/prisma"
 import { parseDateRange, tashkentDateKey, type DateRangeParams } from "@/lib/tz"
 import { parseWorkDays, summarizeAttendance, type DayRecord, type Schedule } from "@/lib/domain/attendance"
@@ -59,7 +60,7 @@ export async function buildTimesheet(organizationId: string, range: { from: stri
   const schedule = scheduleOf(org)
   const createdAt = parseDateRange(range)
 
-  const [users, records, production] = await Promise.all([
+  const [users, records, production, loads] = await Promise.all([
     prisma.user.findMany({
       where: { organizationId, role: { in: TRACKED_ROLES } },
       select: { id: true, name: true, email: true, role: true, isActive: true, createdAt: true },
@@ -74,6 +75,11 @@ export async function buildTimesheet(organizationId: string, range: { from: stri
       where: { organizationId, type: "PRODUCTION", quantity: { gt: 0 }, workerId: { not: null }, ...(createdAt ? { createdAt } : {}) },
       _sum: { quantity: true },
     }),
+    // Stanokka ip qo'ygan xodim — undan chiqadigan paypoq (dona) unga yoziladi
+    prisma.machineLoad.findMany({
+      where: { organizationId, status: { not: "CANCELLED" }, workerId: { not: null }, ...(createdAt ? { loadedAt: createdAt } : {}) },
+      select: { workerId: true, kg: true, gramsPerSock: true },
+    }),
   ])
 
   const recordsByUser = new Map<string, DayRecord[]>()
@@ -83,6 +89,10 @@ export async function buildTimesheet(organizationId: string, range: { from: stri
     recordsByUser.set(r.userId, list)
   }
   const piecesByUser = new Map(production.map(p => [p.workerId as string, p._sum.quantity ?? 0]))
+  for (const l of loads) {
+    const id = l.workerId as string
+    piecesByUser.set(id, (piecesByUser.get(id) ?? 0) + socksFromKg(l.kg, l.gramsPerSock))
+  }
 
   return users
     .filter(u => u.isActive || recordsByUser.has(u.id))

@@ -7,6 +7,7 @@ import { getFinancialSummary } from "@/lib/actions/reports"
 import { getWorkerEarnings } from "@/lib/actions/workers"
 import { buildTimesheet, resolveRange, scheduleOf, toDayRecord } from "@/lib/attendance"
 import { evaluateDay } from "@/lib/domain/attendance"
+import { batchLabel } from "@/lib/domain/machines"
 import { tashkentTimeKey } from "@/lib/tz"
 import { getT } from "@/i18n/server"
 import type { Messages } from "@/i18n/messages"
@@ -118,7 +119,52 @@ const BUILDERS: Record<string, Builder> = {
     },
   },
 
+  // Ombordan sotuv (kg bo'yicha, nasiya bilan)
   sales: {
+    roles: ["ADMIN", "MANAGER"],
+    async build(orgId, range, t) {
+      const createdAt = parseDateRange(range)
+      const sales = await prisma.stockSale.findMany({
+        where: { organizationId: orgId, ...(createdAt ? { createdAt } : {}) },
+        include: {
+          yarn: { select: { name: true } },
+          batch: { select: { date: true, gramsPerSock: true, yarn: { select: { name: true } } } },
+          customer: { select: { name: true } },
+          createdBy: { select: { name: true, email: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: MAX_ROWS,
+      })
+      const S = t.stockSales
+      return {
+        name: t.exports.sheetSales,
+        columns: [
+          { header: t.common.date, key: "date", kind: "datetime" },
+          { header: S.colItem, key: "item", width: 40 },
+          { header: S.colKg, key: "kg", kind: "number" },
+          { header: S.colTotal, key: "total", kind: "money" },
+          { header: S.colPaid, key: "paid", kind: "money" },
+          { header: S.colDebt, key: "debt", kind: "money" },
+          { header: S.colCustomer, key: "customer" },
+          { header: t.common.note, key: "note", width: 30 },
+          { header: t.common.who, key: "by" },
+        ],
+        rows: sales.map(s => ({
+          date: s.createdAt,
+          item: `${S.kinds[s.kind]}: ${s.batch ? batchLabel(s.batch.date, s.batch.yarn.name, s.batch.gramsPerSock) : s.yarn?.name ?? ""}`,
+          kg: s.kg,
+          total: Number(s.totalAmount),
+          paid: Number(s.paidAmount),
+          debt: Number(s.totalAmount) - Number(s.paidAmount),
+          customer: s.customer?.name ?? "",
+          note: s.note ?? "",
+          by: who(s.createdBy),
+        })),
+      }
+    },
+  },
+
+  productSales: {
     roles: ["ADMIN", "MANAGER"],
     async build(orgId, range, t) {
       const createdAt = parseDateRange(range)
@@ -292,7 +338,7 @@ const BUILDERS: Record<string, Builder> = {
       const createdAt = parseDateRange(range)
       const expenses = await prisma.expense.findMany({
         where: { organizationId: orgId, ...(createdAt ? { createdAt } : {}) },
-        include: { createdBy: { select: { name: true, email: true } } },
+        include: { createdBy: { select: { name: true, email: true } }, employee: { select: { name: true, email: true } } },
         orderBy: { createdAt: "desc" },
         take: MAX_ROWS,
       })
@@ -301,13 +347,15 @@ const BUILDERS: Record<string, Builder> = {
         columns: [
           { header: t.common.date, key: "date", kind: "datetime" },
           { header: t.finance.category, key: "category" },
+          { header: t.finance.employee, key: "employee" },
           { header: t.finance.amount, key: "amount", kind: "money" },
           { header: t.common.note, key: "note", width: 40 },
           { header: t.common.who, key: "who" },
         ],
         rows: expenses.map(e => ({
           date: e.createdAt,
-          category: e.category,
+          category: t.finance.categoryLabels[e.category] ?? e.category,
+          employee: e.employee ? who(e.employee) : "",
           amount: Number(e.amount),
           note: e.note ?? "",
           who: who(e.createdBy),

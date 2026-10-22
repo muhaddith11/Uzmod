@@ -1,33 +1,31 @@
 'use client'
 
 import { useState } from "react"
-import { startRuns } from "@/lib/actions/machines"
+import { loadMachines } from "@/lib/actions/machines"
 import { ActionForm } from "@/components/ui/action-form"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Field, NativeSelect, inputClass } from "@/components/ui/field"
 import { useLocale, useT } from "@/i18n/client"
 import { formatNumber } from "@/lib/format"
-import { pairsFromKg, parseMachineNumbers } from "@/lib/domain/machines"
+import { parseMachineNumbers, socksFromKg } from "@/lib/domain/machines"
 
-export type MachineFormOptions = {
+export type LoadFormOptions = {
   yarns: { id: string; name: string; color: string | null; stockKg: number }[]
-  models: { id: string; name: string }[]
-  warehouses: { id: string; name: string }[]
   workers: { id: string; name: string }[]
   canChooseWorker: boolean
 }
 
 const GRAM_PRESETS = [20, 25, 30]
 
-/** Bir yoki bir nechta stanokka ip qo'yib yurgizish (kutilgan paypoq soni jonli ko'rinadi) */
-export function StartRunsForm({
+/** Bir yoki bir nechta stanokka ip qo'yish (chiqadigan paypoq soni jonli ko'rinadi) */
+export function LoadMachinesForm({
   options,
   machineNumbers = "",
   lockNumbers = false,
   onSuccess,
 }: {
-  options: MachineFormOptions
+  options: LoadFormOptions
   machineNumbers?: string
   lockNumbers?: boolean
   onSuccess?: () => void
@@ -36,20 +34,33 @@ export function StartRunsForm({
   const locale = useLocale()
   const M = t.machines
   const [numbers, setNumbers] = useState(machineNumbers)
+  const [yarnId, setYarnId] = useState("")
   const [gram, setGram] = useState("")
   const [kg, setKg] = useState("")
+  const [loadedCount, setLoadedCount] = useState(0)
 
-  if (options.models.length === 0) return <p className="text-sm text-gray-500">{M.noModels}</p>
   if (options.yarns.length === 0) return <p className="text-sm text-gray-500">{M.noYarnStock}</p>
 
   const count = parseMachineNumbers(numbers)?.length ?? 0
   const gramNum = parseFloat(gram)
   const kgNum = parseFloat(kg)
-  const perMachine = gramNum > 0 && kgNum > 0 ? pairsFromKg(kgNum, gramNum) : null
+  const perMachine = gramNum > 0 && kgNum > 0 ? socksFromKg(kgNum, gramNum) : null
+  const yarn = options.yarns.find(y => y.id === yarnId)
+  const totalKg = kgNum > 0 ? kgNum * Math.max(count, 1) : 0
   const fmt = (n: number) => formatNumber(n, locale)
 
   return (
-    <ActionForm action={startRuns} onSuccess={onSuccess} successMessage={lockNumbers ? undefined : M.started(count)} className="space-y-4">
+    // Ip, gramm va kg keyingi stanoklar uchun qoladi — faqat raqamlar tozalanadi
+    <ActionForm
+      action={loadMachines}
+      onSuccess={() => {
+        setLoadedCount(count)
+        setNumbers(machineNumbers)
+        onSuccess?.()
+      }}
+      successMessage={lockNumbers ? undefined : M.loaded(loadedCount)}
+      className="space-y-4"
+    >
       <Field label={M.machineNumbers} hint={lockNumbers ? undefined : M.machineNumbersHint}>
         <Input
           name="machines" required readOnly={lockNumbers}
@@ -59,15 +70,9 @@ export function StartRunsForm({
         />
       </Field>
       <Field label={M.yarn}>
-        <NativeSelect name="yarnId" required defaultValue="">
+        <NativeSelect name="yarnId" required value={yarnId} onChange={e => setYarnId(e.target.value)}>
           <option value="" disabled>{t.common.select}</option>
           {options.yarns.map(y => <option key={y.id} value={y.id}>{y.name} · {fmt(y.stockKg)} kg</option>)}
-        </NativeSelect>
-      </Field>
-      <Field label={M.model}>
-        <NativeSelect name="productId" required defaultValue="">
-          <option value="" disabled>{t.common.select}</option>
-          {options.models.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
         </NativeSelect>
       </Field>
       <Field label={M.gramsPerSock}>
@@ -102,30 +107,17 @@ export function StartRunsForm({
           </NativeSelect>
         </Field>
       )}
-      {options.warehouses.length > 1 && (
-        <div className="grid grid-cols-2 gap-3">
-          <Field label={M.yarnWarehouse}>
-            <NativeSelect name="rawWarehouseId">
-              {options.warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-            </NativeSelect>
-          </Field>
-          <Field label={M.goodsWarehouse}>
-            <NativeSelect name="goodsWarehouseId">
-              {options.warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-            </NativeSelect>
-          </Field>
-        </div>
-      )}
 
       {perMachine !== null && (
-        <div className="rounded-xl bg-indigo-50 p-3 text-sm text-indigo-900 space-y-0.5">
-          <p><b>{M.expected}:</b> {t.yarn.pairs(fmt(perMachine))} — {M.perMachineLabel}</p>
-          {count > 1 && <p><b>{t.common.total}:</b> {fmt(kgNum * count)} kg → {t.yarn.pairs(fmt(perMachine * count))}</p>}
+        <div className={`rounded-xl p-3 text-sm space-y-0.5 ${yarn && totalKg > yarn.stockKg ? "bg-rose-50 text-rose-900" : "bg-indigo-50 text-indigo-900"}`}>
+          <p><b>{M.expected}:</b> {t.yarn.socks(fmt(perMachine))} — {M.perMachineLabel}</p>
+          {count > 1 && <p><b>{t.common.total}:</b> {fmt(totalKg)} kg → {t.yarn.socks(fmt(perMachine * count))}</p>}
+          {yarn && totalKg > yarn.stockKg && <p className="font-bold">{t.stockSales.available(fmt(yarn.stockKg))}</p>}
         </div>
       )}
 
       <Button type="submit" className="w-full h-12 bg-green-600 hover:bg-green-700 text-white text-base font-bold">
-        {M.start}{count > 1 ? ` (${count})` : ""}
+        {M.load}{count > 1 ? ` (${count})` : ""}
       </Button>
     </ActionForm>
   )

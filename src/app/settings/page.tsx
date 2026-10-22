@@ -1,4 +1,4 @@
-import { addDevice, deleteDevice, getSettings, updateModules } from "@/lib/actions/settings"
+import { addDevice, deleteDevice, getSettings, updateAutoTransfer, updateModules } from "@/lib/actions/settings"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ActionForm } from "@/components/ui/action-form"
@@ -9,7 +9,7 @@ import { Field, inputClass } from "@/components/ui/field"
 import { PageHeader } from "@/components/PageHeader"
 import { getLocale, getT } from "@/i18n/server"
 import { formatDateTime } from "@/lib/format"
-import { Settings2Icon, ScanFaceIcon, LayoutGridIcon, InfoIcon } from "lucide-react"
+import { Settings2Icon, ScanFaceIcon, LayoutGridIcon, InfoIcon, TimerIcon } from "lucide-react"
 
 export default async function SettingsPage() {
   const [t, locale, data] = await Promise.all([getT(), getLocale(), getSettings()])
@@ -20,6 +20,22 @@ export default async function SettingsPage() {
       <PageHeader icon={<Settings2Icon className="text-gray-600" />} title={S.title} subtitle={S.subtitle} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+        <div className="space-y-8">
+        <Card className="shadow-sm border-none bg-white">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2"><TimerIcon className="w-5 h-5 text-green-600" />{S.autoTitle}</CardTitle>
+            <CardDescription>{S.autoHint}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ActionForm action={updateAutoTransfer} successMessage={S.autoSaved} className="flex items-end gap-3">
+              <Field label={S.autoTransferHours}>
+                <Input name="autoTransferHours" type="number" min="1" max="240" step="1" required defaultValue={data.autoTransferHours} className={`${inputClass} w-28`} />
+              </Field>
+              <Button type="submit" className="h-11 px-5 bg-green-600 hover:bg-green-700 text-white font-bold">{t.common.save}</Button>
+            </ActionForm>
+          </CardContent>
+        </Card>
+
         <Card className="shadow-sm border-none bg-white">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2"><LayoutGridIcon className="w-5 h-5 text-indigo-600" />{S.modulesTitle}</CardTitle>
@@ -37,6 +53,7 @@ export default async function SettingsPage() {
             </ActionForm>
           </CardContent>
         </Card>
+        </div>
 
         <Card className="shadow-sm border-none bg-white">
           <CardHeader>

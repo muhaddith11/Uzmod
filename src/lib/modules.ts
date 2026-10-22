@@ -4,7 +4,9 @@ import { prisma } from "@/lib/prisma"
 import { getSessionUser } from "@/lib/session"
 
 // Yoqib-o'chiriladigan bo'limlar. Kichik sexda keraksizlari yashiriladi — interfeys soddalashadi.
-export const MODULES = ["sales", "finance", "suppliers", "rolls", "bomProduction"] as const
+// `legacy` — umumiy ombor tizimining eski sahifalari (mahsulotlar va narxlar, bir nechta
+// ombor, mahsulot sotuvi, mijozlar, hisobot, tarix).
+export const MODULES = ["sales", "finance", "suppliers", "rolls", "bomProduction", "legacy"] as const
 export type ModuleKey = (typeof MODULES)[number]
 
 export function parseDisabled(value: string): Set<ModuleKey> {

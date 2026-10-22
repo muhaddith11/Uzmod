@@ -88,11 +88,11 @@ describe("ZKTeco ADMS", () => {
 })
 
 describe("bo'limlar", () => {
-  it("sukut bo'yicha ta'minotchi, rulon va eski tikuv o'chiq; admin o'zgartira oladi", async () => {
-    expect((await prisma.organization.findUniqueOrThrow({ where: { id: w.org.id } })).disabledModules).toBe("suppliers,rolls,bomProduction")
+  it("sukut bo'yicha ta'minotchi, rulon, eski tikuv va eski sahifalar o'chiq; admin o'zgartira oladi", async () => {
+    expect((await prisma.organization.findUniqueOrThrow({ where: { id: w.org.id } })).disabledModules).toBe("suppliers,rolls,bomProduction,legacy")
     asUser(w.admin)
     expect(await updateModules(form({ modules: ["sales", "finance", "rolls"] }))).toEqual({})
-    expect((await prisma.organization.findUniqueOrThrow({ where: { id: w.org.id } })).disabledModules).toBe("suppliers,bomProduction")
+    expect((await prisma.organization.findUniqueOrThrow({ where: { id: w.org.id } })).disabledModules).toBe("suppliers,bomProduction,legacy")
     asUser(w.manager)
     expect((await updateModules(form({ modules: ["suppliers"] }))).error).toMatch(/ruxsat/)
   })

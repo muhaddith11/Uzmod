@@ -1,3 +1,4 @@
+import { requireModule } from "@/lib/modules"
 import type { MovementType } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { getSessionUser, isManagement } from "@/lib/session"
@@ -32,6 +33,7 @@ export default async function HistoryPage({
 }: {
   searchParams: Promise<{ from?: string; to?: string }>
 }) {
+  await requireModule("legacy")
   const me = await getSessionUser()
   const { from, to } = await searchParams
   const createdAt = parseDateRange({ from, to })

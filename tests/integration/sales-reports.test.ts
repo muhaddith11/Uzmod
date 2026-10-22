@@ -110,7 +110,7 @@ describe("hisobot", () => {
     await addAdjustment(form({ userId: w.worker.id, amount: 5000, type: "BONUS" }))
 
     asUser(w.admin)
-    await createExpense(form({ amount: 30000, category: "Ijara" }))
+    await createExpense(form({ amount: 30000, category: "WORKSHOP" }))
 
     const r = await getFinancialSummary()
     expect(r.revenue).toBe(120000)

@@ -1,26 +1,19 @@
 import { describe, expect, it } from "vitest"
-import { colorHex, evaluateRun, kgPerPair, pairsFromKg, parseMachineNumbers, socksFromKg, yarnName } from "@/lib/domain/machines"
+import { batchLabel, colorHex, parseMachineNumbers, socksFromKg, yarnName } from "@/lib/domain/machines"
 import { mergePunch } from "@/lib/domain/attendance"
 import { handshakeOptions, parseAttLog } from "@/lib/zkteco"
 
 describe("ipdan paypoq hisobi (gramm — bitta paypoq)", () => {
-  it("kg va grammdan dona va juft", () => {
+  it("kg va grammdan dona", () => {
     expect(socksFromKg(1, 20)).toBe(50)
-    expect(pairsFromKg(1, 20)).toBe(25)
-    expect(pairsFromKg(1, 30)).toBe(16) // 33 dona → 16 juft
-    expect(pairsFromKg(4500, 25)).toBe(90_000)
-    expect(pairsFromKg(0, 25)).toBe(0)
-    expect(kgPerPair(25)).toBe(0.05)
+    expect(socksFromKg(1, 30)).toBe(33)
+    expect(socksFromKg(4500, 25)).toBe(180_000)
+    expect(socksFromKg(0, 25)).toBe(0)
+    expect(socksFromKg(5, 0)).toBe(0)
   })
 
-  it("stanok ishi: kutilgan, farq, chiqish va yo'qotish", () => {
-    // 10 kg berildi, 1 kg qaytdi → 9 kg sarf; 25 g → 180 juft kutiladi; 170 sanaldi
-    const r = evaluateRun({ issuedKg: 10, countedPairs: 170, leftoverKg: 1, gramsPerSock: 25 })
-    expect(r).toEqual({ consumedKg: 9, expectedPairs: 180, differencePairs: -10, efficiencyPercent: 94, lossKg: 0.5 })
-  })
-
-  it("ochiq ish: sarf = berilgan ip", () => {
-    expect(evaluateRun({ issuedKg: 5, countedPairs: 0, leftoverKg: null, gramsPerSock: 20 }).expectedPairs).toBe(125)
+  it("partiya nomi: sana + ip + gramm", () => {
+    expect(batchLabel("2026-10-22", "Supreme — Qora", 25)).toBe("22.10 · Supreme — Qora · 25 g")
   })
 
   it("stanok raqamlari", () => {

@@ -7,7 +7,7 @@ import { inventory, production, rolls } from "./inventory"
 import { customers, sales, suppliers } from "./sales"
 import { dashboard, exportsMsg, finance, history, reports, tma, warehouses } from "./finance"
 import { attendance } from "./attendance"
-import { machines, settings, yarn } from "./machines"
+import { machines, settings, stock, stockSales, yarn } from "./machines"
 
 const namespaces = {
   common,
@@ -33,6 +33,8 @@ const namespaces = {
   attendance,
   machines,
   yarn,
+  stock,
+  stockSales,
   settings,
 }
 

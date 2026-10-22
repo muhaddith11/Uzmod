@@ -1,47 +1,9 @@
-// Stanok hisob-kitobi (bazasiz). Gramm — bitta paypoq (dona) og'irligi; sanash — juftda.
-
-const round1 = (n: number) => Math.round(n * 10) / 10
+// Sex hisob-kitobi (bazasiz). Gramm — bitta paypoq (dona) og'irligi.
 
 /** kg ipdan necha dona paypoq chiqadi */
 export function socksFromKg(kg: number, gramsPerSock: number): number {
   if (!(gramsPerSock > 0) || !(kg > 0)) return 0
   return Math.floor((kg * 1000) / gramsPerSock)
-}
-
-/** kg ipdan necha juft paypoq chiqadi */
-export function pairsFromKg(kg: number, gramsPerSock: number): number {
-  return Math.floor(socksFromKg(kg, gramsPerSock) / 2)
-}
-
-/** Bir juft uchun ip, kg */
-export function kgPerPair(gramsPerSock: number): number {
-  return (gramsPerSock * 2) / 1000
-}
-
-export type RunNumbers = {
-  issuedKg: number
-  countedPairs: number
-  leftoverKg: number | null
-  gramsPerSock: number
-}
-
-/**
- * Stanok ishi natijasi. Ochiq ishda sarf = berilgan ip (stanokdagi qoldiq hali
- * noma'lum), yopilganda — berilgan minus qaytarilgan. Farq manfiy bo'lsa — ip
- * kutilganidan ko'p ketgan (brak, chiqindi yoki gramm noto'g'ri qo'yilgan).
- */
-export function evaluateRun(run: RunNumbers) {
-  const consumedKg = Math.max(run.issuedKg - (run.leftoverKg ?? 0), 0)
-  const expectedPairs = pairsFromKg(consumedKg, run.gramsPerSock)
-  const usedByCountedKg = run.countedPairs * kgPerPair(run.gramsPerSock)
-  const lossKg = Math.max(consumedKg - usedByCountedKg, 0)
-  return {
-    consumedKg: round1(consumedKg),
-    expectedPairs,
-    differencePairs: run.countedPairs - expectedPairs,
-    efficiencyPercent: expectedPairs > 0 ? Math.round((run.countedPairs / expectedPairs) * 100) : null,
-    lossKg: round1(lossKg),
-  }
 }
 
 /**
@@ -74,6 +36,12 @@ export function parseMachineNumbers(input: string): number[] | null {
 /** Ip nomi: "Supreme — Qora" */
 export function yarnName(type: string, color: string): string {
   return `${type.trim()} — ${color.trim()}`
+}
+
+/** Partiya nomi: "22.10 · Supreme — Qora · 25 g" (sana — YYYY-MM-DD) */
+export function batchLabel(date: string, yarn: string, gramsPerSock: number): string {
+  const [, month, day] = date.split("-")
+  return `${day}.${month} · ${yarn} · ${gramsPerSock} g`
 }
 
 // Rang nomidan ko'rinadigan nuqta rangi (taxminiy; topilmasa — kulrang)

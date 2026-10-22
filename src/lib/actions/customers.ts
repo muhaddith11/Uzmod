@@ -89,6 +89,8 @@ export const repayDebt = action(async function repayDebt(formData: FormData) {
 
   revalidatePath("/customers")
   revalidatePath("/reports")
+  revalidatePath("/finance")
+  revalidatePath("/sales")
 })
 
 export async function getDebtPayments(limit = 100) {

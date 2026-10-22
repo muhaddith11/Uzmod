@@ -7,21 +7,21 @@ import { requireRole } from "@/lib/session"
 import { action, ActionError } from "@/lib/action"
 import { fields, parseForm, parseInput } from "@/lib/validation"
 import { serializable } from "@/lib/db"
-import { addStock, applyIncomingCost, totalStock } from "@/lib/inventory"
-import { assertOrgWarehouse } from "@/lib/guards"
+import { addStock } from "@/lib/inventory"
 import { roundQty } from "@/lib/domain/costing"
 import { yarnName } from "@/lib/domain/machines"
+import { defaultWarehouseId } from "@/lib/workshop"
 import { startOfTashkentDayFor } from "@/lib/tz"
 import { getT } from "@/i18n/server"
 
 /**
  * Ip qoldiqlari: tur + rang bo'yicha. Har biri uchun bugun kelgani va hozir
- * ochiq stanok ishlarida turgan ip ham ko'rsatiladi.
+ * stanoklarda tikilayotgani ham ko'rsatiladi.
  */
 export async function getYarnStock() {
   const { organizationId } = await requireRole('ADMIN', 'MANAGER')
   const todayStart = startOfTashkentDayFor(new Date())
-  const [items, today, openRuns] = await Promise.all([
+  const [items, today, knitting] = await Promise.all([
     prisma.product.findMany({
       where: { organizationId, isRawMaterial: true, yarnType: { not: null } },
       include: { stockLevels: { select: { quantity: true } } },
@@ -32,14 +32,14 @@ export async function getYarnStock() {
       where: { organizationId, type: 'IN', createdAt: { gte: todayStart } },
       _sum: { quantity: true },
     }),
-    prisma.machineRun.groupBy({
+    prisma.machineLoad.groupBy({
       by: ['yarnId'],
-      where: { organizationId, status: 'OPEN' },
-      _sum: { issuedKg: true },
+      where: { organizationId, status: 'KNITTING' },
+      _sum: { kg: true },
     }),
   ])
   const todayById = new Map(today.map(t => [t.productId, t._sum.quantity ?? 0]))
-  const inMachinesById = new Map(openRuns.map(r => [r.yarnId, r._sum.issuedKg ?? 0]))
+  const knittingById = new Map(knitting.map(r => [r.yarnId, r._sum.kg ?? 0]))
 
   return items.map(p => ({
     id: p.id,
@@ -48,14 +48,13 @@ export async function getYarnStock() {
     color: p.color ?? "",
     stockKg: roundQty(p.stockLevels.reduce((acc, sl) => acc + sl.quantity, 0)),
     todayKg: roundQty(todayById.get(p.id) ?? 0),
-    inMachinesKg: roundQty(inMachinesById.get(p.id) ?? 0),
-    costPerKg: Number(p.costPrice),
+    knittingKg: roundQty(knittingById.get(p.id) ?? 0),
   }))
 }
 
 /**
- * Ip qabul qilish: bir nechta qator (tur, rang, kg, narx). Tur+rang bo'yicha ip
- * topiladi yoki yaratiladi. Narx berilsa — o'rtacha tannarx yangilanadi.
+ * Ip qabul qilish: bir nechta qator (tur, rang, kg). Tur+rang bo'yicha ip
+ * topiladi yoki yaratiladi. Narx yozilmaydi — ip xaridi moliyada xarajat sifatida.
  */
 export const receiveYarn = action(async function receiveYarn(formData: FormData) {
   const me = await requireRole('ADMIN', 'MANAGER')
@@ -64,7 +63,6 @@ export const receiveYarn = action(async function receiveYarn(formData: FormData)
   const Y = t.yarn
 
   const head = parseForm(z.object({
-    warehouseId: f.optionalId(),
     note: f.optionalText(t.common.note),
     lines: z.string(),
   }), formData)
@@ -80,20 +78,12 @@ export const receiveYarn = action(async function receiveYarn(formData: FormData)
       type: f.text(Y.type, 60),
       color: f.text(Y.color, 60),
       kg: f.positive(Y.kg),
-      price: f.optionalNonNegative(Y.pricePerKg),
     })).min(1, Y.noLines).max(50, t.sales.tooManyItems),
     raw,
   )
 
-  const warehouseId = head.warehouseId ?? (await prisma.warehouse.findFirst({
-    where: { organizationId: me.organizationId },
-    orderBy: { name: 'asc' },
-    select: { id: true },
-  }))?.id
-  if (!warehouseId) throw new ActionError(t.errors.warehouseNotFound)
-  await assertOrgWarehouse(me.organizationId, warehouseId)
-
   await serializable(async (tx) => {
+    const warehouseId = await defaultWarehouseId(tx, me.organizationId)
     for (const line of lines) {
       const yarnType = line.type.trim()
       const color = line.color.trim()
@@ -114,25 +104,19 @@ export const receiveYarn = action(async function receiveYarn(formData: FormData)
             isRawMaterial: true,
             yarnType,
             color,
-            costPrice: line.price ?? 0,
             organizationId: me.organizationId,
           },
         })
       }
 
       const kg = roundQty(line.kg)
-      const qtyBefore = await totalStock(tx, product.id)
       await addStock(tx, product.id, warehouseId, kg)
-      if (line.price !== undefined) {
-        await applyIncomingCost(tx, product, qtyBefore, kg, line.price)
-      }
       await tx.stockMovement.create({
         data: {
           type: 'IN',
           quantity: kg,
           productId: product.id,
           toWarehouseId: warehouseId,
-          unitCost: line.price ?? product.costPrice,
           creatorId: me.id,
           organizationId: me.organizationId,
           note: head.note ?? Y.receiveNote,
@@ -141,7 +125,7 @@ export const receiveYarn = action(async function receiveYarn(formData: FormData)
     }
   })
 
-  revalidatePath("/yarn")
+  revalidatePath("/stock")
   revalidatePath("/machines")
   revalidatePath("/")
 })

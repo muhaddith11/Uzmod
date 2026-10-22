@@ -1,3 +1,4 @@
+import { requireModule } from "@/lib/modules"
 import { getWarehouses, createWarehouse, deleteWarehouse } from "@/lib/actions/warehouses"
 import { ActionForm } from "@/components/ui/action-form"
 import { Field, inputClass } from "@/components/ui/field"
@@ -10,6 +11,7 @@ import { getT } from "@/i18n/server"
 import { WarehouseIcon, PlusIcon, MapPinIcon } from "lucide-react"
 
 export default async function WarehousesPage() {
+  await requireModule("legacy")
   const [t, warehouses] = await Promise.all([getT(), getWarehouses()])
   const W = t.warehouses
 

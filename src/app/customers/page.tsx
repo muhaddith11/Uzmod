@@ -15,7 +15,7 @@ import { formatDateTime, formatMoney } from "@/lib/format"
 import { UsersIcon, UserPlusIcon, BanknoteIcon, HistoryIcon } from "lucide-react"
 
 export default async function CustomersPage() {
-  await requireModule("sales")
+  await requireModule("legacy")
   const [t, locale, customers, payments] = await Promise.all([getT(), getLocale(), getCustomers(), getDebtPayments(30)])
   const C = t.customers
   const totalDebt = customers.reduce((acc, c) => acc + Math.max(c.debt, 0), 0)
