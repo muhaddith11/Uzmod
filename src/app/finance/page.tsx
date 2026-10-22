@@ -1,3 +1,4 @@
+import { requireModule } from "@/lib/modules"
 import { getExpenses, createExpense, deleteExpense } from "@/lib/actions/expenses"
 import { ActionForm } from "@/components/ui/action-form"
 import { Field, inputClass } from "@/components/ui/field"
@@ -18,6 +19,7 @@ export default async function FinancePage({
 }: {
   searchParams: Promise<{ from?: string; to?: string }>
 }) {
+  await requireModule("finance")
   const range = await searchParams
   const [t, locale, expenses] = await Promise.all([getT(), getLocale(), getExpenses(range)])
   const F = t.finance

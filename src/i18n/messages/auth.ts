@@ -58,7 +58,10 @@ export const auth = ns({
 export const nav = ns({
   uz: {
     dashboard: "Bosh sahifa",
-    inventory: "Inventar",
+    inventory: "Mahsulotlar",
+    yarn: "Ip ombori",
+    machines: "Stanoklar",
+    settings: "Sozlamalar",
     rolls: "Rulonlar",
     production: "Tikuv",
     sales: "Sotuv",
@@ -74,7 +77,10 @@ export const nav = ns({
   },
   ru: {
     dashboard: "Главная",
-    inventory: "Склад",
+    inventory: "Товары",
+    yarn: "Склад пряжи",
+    machines: "Станки",
+    settings: "Настройки",
     rolls: "Рулоны",
     production: "Пошив",
     sales: "Продажи",

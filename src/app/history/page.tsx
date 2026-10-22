@@ -23,6 +23,8 @@ const TYPE_CLASS: Record<MovementType, string> = {
   WASTAGE: "bg-orange-50 text-orange-700 border-orange-100",
   REVISION: "bg-emerald-50 text-emerald-700 border-emerald-100",
   RETURN: "bg-amber-50 text-amber-700 border-amber-100",
+  TO_MACHINE: "bg-indigo-50 text-indigo-700 border-indigo-100",
+  FROM_MACHINE: "bg-teal-50 text-teal-700 border-teal-100",
 }
 
 export default async function HistoryPage({

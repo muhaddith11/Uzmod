@@ -1,3 +1,4 @@
+import { requireModule } from "@/lib/modules"
 import { getFinancialSummary } from "@/lib/actions/reports"
 import { DateRangeFilter } from "@/components/DateRangeFilter"
 import { ExportButton } from "@/components/ExportButton"
@@ -12,6 +13,7 @@ export default async function ReportsPage({
 }: {
   searchParams: Promise<{ from?: string; to?: string }>
 }) {
+  await requireModule("finance")
   const range = await searchParams
   const [t, locale, data] = await Promise.all([getT(), getLocale(), getFinancialSummary(range)])
   const R = t.reports

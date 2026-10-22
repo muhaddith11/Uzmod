@@ -1,6 +1,6 @@
 import {
   getWorkerEarnings, getStaff, createEmployee, addAdjustment, deleteAdjustment,
-  setEmployeeActive, resetEmployeePassword, changeEmployeeRole,
+  setEmployeeActive, resetEmployeePassword, changeEmployeeRole, setEmployeeDeviceId,
 } from "@/lib/actions/workers"
 import { getSessionUser } from "@/lib/session"
 import { ActionForm } from "@/components/ui/action-form"
@@ -21,7 +21,7 @@ import { formatDate, formatMoney, formatNumber } from "@/lib/format"
 import { tashkentDateKey } from "@/lib/tz"
 import { buildTimesheet, resolveRange } from "@/lib/attendance"
 import { formatDuration } from "@/lib/domain/attendance"
-import { UserIcon, BanknoteIcon, TrendingUpIcon, PlusIcon, UserPlusIcon, KeyRoundIcon, BanIcon, CheckCircleIcon, ShieldIcon } from "lucide-react"
+import { UserIcon, BanknoteIcon, TrendingUpIcon, PlusIcon, UserPlusIcon, KeyRoundIcon, BanIcon, CheckCircleIcon, ShieldIcon, ScanFaceIcon } from "lucide-react"
 
 export default async function WorkersPage({
   searchParams,
@@ -144,6 +144,9 @@ export default async function WorkersPage({
                             <span className={`text-[11px] ${s.telegramId ? "text-green-600" : "text-gray-400"}`}>
                               {s.telegramId ? W.telegramLinked : W.telegramNotLinked}
                             </span>
+                            {s.deviceUserId && (
+                              <span className="text-[11px] text-sky-700 font-bold">{W.deviceId}: {s.deviceUserId}</span>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell className="px-4">
@@ -155,8 +158,24 @@ export default async function WorkersPage({
                           </Badge>
                         </TableCell>
                         <TableCell className="px-4">
+                          <div className="flex flex-wrap justify-end gap-1.5">
+                            {(canManage(s) || (me.role === 'ADMIN' && s.id === me.id)) && (
+                              <FormDialog
+                                triggerClassName="gap-1"
+                                trigger={<><ScanFaceIcon className="w-3.5 h-3.5" />{W.deviceId}</>}
+                                title={`${W.deviceId}: ${label}`}
+                                description={W.deviceIdHint}
+                                action={setEmployeeDeviceId}
+                                submitLabel={t.common.save}
+                              >
+                                <input type="hidden" name="userId" value={s.id} />
+                                <Field label={W.deviceId}>
+                                  <Input name="deviceUserId" defaultValue={s.deviceUserId ?? ""} inputMode="numeric" className={inputClass} placeholder="12" />
+                                </Field>
+                              </FormDialog>
+                            )}
                           {canManage(s) && (
-                            <div className="flex flex-wrap justify-end gap-1.5">
+                            <div className="contents">
                               {s.isActive ? (
                                 <ActionButton
                                   action={setEmployeeActive.bind(null, s.id, false)}
@@ -206,6 +225,7 @@ export default async function WorkersPage({
                               )}
                             </div>
                           )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     )

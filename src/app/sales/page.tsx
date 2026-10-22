@@ -1,3 +1,4 @@
+import { requireModule } from "@/lib/modules"
 import { getProducts } from "@/lib/actions/products"
 import { getWarehouses } from "@/lib/actions/warehouses"
 import { getCustomers } from "@/lib/actions/customers"
@@ -22,6 +23,7 @@ export default async function SalesPage({
 }: {
   searchParams: Promise<{ from?: string; to?: string }>
 }) {
+  await requireModule("sales")
   const me = await getSessionUser()
   const range = await searchParams
   const [t, locale, products, warehouses, customers, sales] = await Promise.all([

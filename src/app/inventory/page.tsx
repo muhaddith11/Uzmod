@@ -4,6 +4,7 @@ import { getWarehouses } from "@/lib/actions/warehouses"
 import { getSupplierOptions } from "@/lib/actions/suppliers"
 import { stockIn, stockAdjust, transferStock } from "@/lib/actions/stock"
 import { getSessionUser, isManagement } from "@/lib/session"
+import { getEnabledModules } from "@/lib/modules"
 import { ActionForm } from "@/components/ui/action-form"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Field, NativeSelect, inputClass } from "@/components/ui/field"
@@ -27,13 +28,16 @@ type Option = { id: string; name: string }
 export default async function InventoryPage() {
   const me = await getSessionUser()
   const manager = isManagement(me.role)
+  const modules = await getEnabledModules()
+  const showRolls = modules.has("rolls")
+  const showSuppliers = modules.has("suppliers")
   const [t, locale, products, warehouses, suppliers] = await Promise.all([
-    getT(), getLocale(), getProducts(), getWarehouses(), manager ? getSupplierOptions() : Promise.resolve([]),
+    getT(), getLocale(), getProducts(), getWarehouses(), manager && showSuppliers ? getSupplierOptions() : Promise.resolve([]),
   ])
   const L = t.inventory
   const rawMaterials = products.filter(p => p.isRawMaterial)
   const finishedGoods = products.filter(p => !p.isRawMaterial)
-  const ctx = { t, locale, manager, warehouses, suppliers }
+  const ctx = { t, locale, manager, warehouses, suppliers, showSuppliers }
 
   return (
     <div className={pageClass}>
@@ -87,13 +91,13 @@ export default async function InventoryPage() {
                   <input type="checkbox" name="isRaw" className="w-5 h-5 accent-indigo-600 rounded border-gray-300" />
                   <span className="text-sm font-bold text-gray-700">{L.isRaw}</span>
                 </label>
-                <label className="flex items-start gap-2 rounded-xl bg-amber-50/60 border border-amber-100 p-3 cursor-pointer">
+                {showRolls && <label className="flex items-start gap-2 rounded-xl bg-amber-50/60 border border-amber-100 p-3 cursor-pointer">
                   <input type="checkbox" name="isRollTracked" className="w-5 h-5 mt-0.5 accent-amber-600 rounded border-gray-300" />
                   <span>
                     <span className="text-sm font-bold text-gray-700 block">{L.isRollTracked}</span>
                     <span className="text-xs text-gray-500">{L.isRollTrackedHint}</span>
                   </span>
-                </label>
+                </label>}
                 <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 font-bold h-11">
                   {L.addToCatalog}
                 </Button>
@@ -119,7 +123,7 @@ export default async function InventoryPage() {
   )
 }
 
-type Ctx = { t: Messages; locale: Locale; manager: boolean; warehouses: Option[]; suppliers: Option[] }
+type Ctx = { t: Messages; locale: Locale; manager: boolean; warehouses: Option[]; suppliers: Option[]; showSuppliers: boolean }
 
 function ProductTable({ products, ctx }: { products: ProductRow[]; ctx: Ctx }) {
   const { t, locale, manager } = ctx
@@ -220,7 +224,7 @@ function WarehouseSelect({ name, warehouses, label }: { name: string; warehouses
 }
 
 function ProductActions({ product: p, ctx }: { product: ProductRow; ctx: Ctx }) {
-  const { t, warehouses, suppliers } = ctx
+  const { t, warehouses, suppliers, showSuppliers } = ctx
   const L = t.inventory
   const triggerClass = "h-9 px-3 gap-1 font-bold"
 
@@ -250,15 +254,19 @@ function ProductActions({ product: p, ctx }: { product: ProductRow; ctx: Ctx }) 
               </Field>
             </div>
             <p className="text-xs text-gray-500">{L.unitPriceHint}</p>
-            <Field label={t.common.supplier}>
-              <NativeSelect name="supplierId" defaultValue="">
-                <option value="">{L.noSupplier}</option>
-                {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </NativeSelect>
-            </Field>
-            <Field label={`${L.paidNow} (${t.common.currency})`} hint={L.paidNowHint}>
-              <Input name="paidAmount" type="number" step="0.01" min="0" className={inputClass} />
-            </Field>
+            {showSuppliers && (
+              <>
+                <Field label={t.common.supplier}>
+                  <NativeSelect name="supplierId" defaultValue="">
+                    <option value="">{L.noSupplier}</option>
+                    {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </NativeSelect>
+                </Field>
+                <Field label={`${L.paidNow} (${t.common.currency})`} hint={L.paidNowHint}>
+                  <Input name="paidAmount" type="number" step="0.01" min="0" className={inputClass} />
+                </Field>
+              </>
+            )}
             <Field label={t.common.note}>
               <Input name="note" placeholder={t.common.notePlaceholder} className={inputClass} />
             </Field>

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action"
 import { getSessionUser } from "@/lib/session"
 import { getT } from "@/i18n/server"
+import { getEnabledModules } from "@/lib/modules"
 
 // initData'ni tekshiradi va foydalanuvchi ulanganini aniqlaydi (ko'rsatish uchun).
 // Haqiqiy sessiya client'da signIn("telegram") orqali yaratiladi (auth.ts).
@@ -50,7 +51,8 @@ export async function authenticateTMA(initData: string) {
  */
 export async function getTmaData() {
   const me = await getSessionUser()
-  const [products, warehouses] = await Promise.all([
+  const [modules, products, warehouses] = await Promise.all([
+    getEnabledModules(),
     prisma.product.findMany({
       where: { organizationId: me.organizationId },
       select: { id: true, name: true, unit: true, isRawMaterial: true, isRollTracked: true },
@@ -62,5 +64,11 @@ export async function getTmaData() {
       orderBy: { name: 'asc' }
     })
   ])
-  return { products, warehouses }
+  return {
+    products,
+    warehouses,
+    // Yashirilgan bo'limlar Mini App'da ham ko'rinmaydi
+    showProduction: modules.has("bomProduction"),
+    showRolls: modules.has("rolls"),
+  }
 }

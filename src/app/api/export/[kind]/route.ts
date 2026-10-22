@@ -64,7 +64,7 @@ const BUILDERS: Record<string, Builder> = {
             late: e.lateMinutes || "",
             early: e.earlyLeaveMinutes || "",
             distance: r.checkInDistanceM ?? "",
-            source: r.source === "SELF" ? A.sourceSelf : `${A.sourceManager}${r.editedBy ? `: ${who(r.editedBy)}` : ""}`,
+            source: r.source === "SELF" ? A.sourceSelf : r.source === "DEVICE" ? A.sourceDevice : `${A.sourceManager}${r.editedBy ? `: ${who(r.editedBy)}` : ""}`,
             note: r.note ?? "",
           }
         }),

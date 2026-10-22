@@ -208,3 +208,24 @@ export function formatDuration(minutes: number): string {
   const m = minutes % 60
   return `${h}:${String(m).padStart(2, "0")}`
 }
+
+/**
+ * Qurilmadan kelgan belgini kunlik yozuvga qo'shadi: kunning birinchi belgisi —
+ * kelish, oxirgisi — ketish. Bir daqiqa ichidagi takroriy belgi e'tiborga olinmaydi.
+ * Qurilma eski belgilarni keyinroq yuborishi mumkin — tartib buzilsa ham to'g'ri.
+ * null — o'zgarish yo'q.
+ */
+export function mergePunch(
+  current: { checkIn: Date | null; checkOut: Date | null } | null,
+  at: Date,
+  minGapMs = 60_000,
+): { checkIn: Date; checkOut: Date | null } | null {
+  if (!current?.checkIn) return { checkIn: at, checkOut: current?.checkOut ?? null }
+  const { checkIn, checkOut } = current
+  if (at < checkIn) {
+    return { checkIn: at, checkOut: checkOut ?? (checkIn.getTime() - at.getTime() >= minGapMs ? checkIn : null) }
+  }
+  if (at.getTime() - checkIn.getTime() < minGapMs) return null
+  if (checkOut && at <= checkOut) return null
+  return { checkIn, checkOut: at }
+}

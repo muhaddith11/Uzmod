@@ -8,7 +8,7 @@ import { useT } from "@/i18n/client"
 import { tashkentTimeKey } from "@/lib/tz"
 import { formatDuration } from "@/lib/domain/attendance"
 import { getCurrentCoords } from "@/lib/geo-client"
-import { AlertTriangleIcon, CheckCircle2Icon, Clock3Icon, LogInIcon, LogOutIcon, MapPinIcon } from "lucide-react"
+import { AlertTriangleIcon, CheckCircle2Icon, Clock3Icon, LogInIcon, LogOutIcon, MapPinIcon, ScanFaceIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export type MyToday = Awaited<ReturnType<typeof getMyAttendanceToday>>
@@ -128,7 +128,11 @@ export function CheckInCard({ initial, className }: { initial?: MyToday; classNa
         )}
       </div>
 
-      {(!status || status === "PRESENT") && (
+      {today.deviceMode ? (
+        <div className="rounded-xl bg-sky-50 text-sky-800 text-sm font-semibold p-3 flex items-center gap-2">
+          <ScanFaceIcon className="w-4 h-4 shrink-0" /> {A.deviceMode}
+        </div>
+      ) : (!status || status === "PRESENT") && (
         hasOut ? (
           <div className="rounded-xl bg-green-50 text-green-700 text-sm font-bold p-3 flex items-center gap-2">
             <CheckCircle2Icon className="w-4 h-4" /> {A.dayDone}
@@ -149,7 +153,7 @@ export function CheckInCard({ initial, className }: { initial?: MyToday; classNa
         )
       )}
 
-      {today.requireLocation && !hasOut && <p className="text-[11px] text-gray-400">{A.locationRequired}</p>}
+      {today.requireLocation && !today.deviceMode && !hasOut && <p className="text-[11px] text-gray-400">{A.locationRequired}</p>}
 
       {message && (
         <div

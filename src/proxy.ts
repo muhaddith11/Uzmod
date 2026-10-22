@@ -9,5 +9,6 @@ export default auth
 export const config = {
   // /api (NextAuth, Telegram webhook, eksport) va statik fayllar tekshirilmaydi —
   // API route'lar o'zi sessiyani tekshiradi
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|ico)$).*)"],
+  // /iclock — Face ID qurilma (ZKTeco ADMS): sessiyasiz, qurilma seriya raqami bilan tekshiriladi
+  matcher: ["/((?!api|iclock|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|ico)$).*)"],
 }

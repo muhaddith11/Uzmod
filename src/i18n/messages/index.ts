@@ -7,6 +7,7 @@ import { inventory, production, rolls } from "./inventory"
 import { customers, sales, suppliers } from "./sales"
 import { dashboard, exportsMsg, finance, history, reports, tma, warehouses } from "./finance"
 import { attendance } from "./attendance"
+import { machines, settings, yarn } from "./machines"
 
 const namespaces = {
   common,
@@ -30,6 +31,9 @@ const namespaces = {
   tma,
   exports: exportsMsg,
   attendance,
+  machines,
+  yarn,
+  settings,
 }
 
 type Namespaces = typeof namespaces

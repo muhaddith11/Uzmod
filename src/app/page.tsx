@@ -1,5 +1,6 @@
 import { getDashboardData } from "@/lib/actions/dashboard"
 import { getSessionUser, isManagement } from "@/lib/session"
+import { getEnabledModules } from "@/lib/modules"
 import { getMyAttendanceToday, getMyMonthSummary, getTodayBoard } from "@/lib/actions/attendance"
 import { CheckInCard } from "@/components/attendance/CheckInCard"
 import { formatDuration } from "@/lib/domain/attendance"
@@ -11,14 +12,15 @@ import ProductionChart from "@/components/dashboard/ProductionChart"
 import { getLocale, getT } from "@/i18n/server"
 import { formatMoney, formatNumber } from "@/lib/format"
 import {
-  WarehouseIcon, AlertTriangleIcon, BarChart3Icon, ShoppingBagIcon, CalendarIcon, HammerIcon, DiscIcon, BanknoteIcon, UsersIcon
+  WarehouseIcon, AlertTriangleIcon, BarChart3Icon, ShoppingBagIcon, CalendarIcon, HammerIcon, DiscIcon, BanknoteIcon, UsersIcon, CogIcon, PackageOpenIcon
 } from "lucide-react"
 
 export default async function HomePage() {
   const me = await getSessionUser()
   // Davomat ishchi va menejerlarga yuritiladi (admin — egasi)
   const tracked = me.role !== 'ADMIN'
-  const [data, t, locale, myToday, myMonth, board] = await Promise.all([
+  const [modules, data, t, locale, myToday, myMonth, board] = await Promise.all([
+    getEnabledModules(),
     getDashboardData(), getT(), getLocale(),
     tracked ? getMyAttendanceToday() : Promise.resolve(null),
     tracked ? getMyMonthSummary() : Promise.resolve(null),
@@ -61,10 +63,18 @@ export default async function HomePage() {
           <Stat icon={<UsersIcon className="w-5 h-5" />} label={D.atWorkToday} value={`${board.counts.inWork} / ${board.counts.total}`} tone="green" />
         )}
         <Stat icon={<HammerIcon className="w-5 h-5" />} label={D.producedToday} value={formatNumber(data.producedToday, locale)} tone="indigo" />
-        {data.salesToday !== null && (
+        {data.salesToday !== null && modules.has("sales") && (
           <Stat icon={<BanknoteIcon className="w-5 h-5" />} label={D.salesToday} value={formatMoney(data.salesToday, locale)} tone="green" />
         )}
-        <Stat icon={<DiscIcon className="w-5 h-5" />} label={D.openRolls} value={formatNumber(data.openRolls, locale)} tone="amber" />
+        {data.machines > 0 && (
+          <Stat icon={<CogIcon className="w-5 h-5" />} label={D.runningMachines} value={`${data.runningMachines} / ${data.machines}`} tone="indigo" />
+        )}
+        {isManagement(me.role) && (
+          <Stat icon={<PackageOpenIcon className="w-5 h-5" />} label={D.yarnToday} value={`${formatNumber(data.yarnTodayKg, locale)} kg`} tone="amber" />
+        )}
+        {modules.has("rolls") && (
+          <Stat icon={<DiscIcon className="w-5 h-5" />} label={D.openRolls} value={formatNumber(data.openRolls, locale)} tone="amber" />
+        )}
         {!board && <Stat icon={<WarehouseIcon className="w-5 h-5" />} label={D.warehouses} value={formatNumber(data.warehouseCount, locale)} tone="gray" />}
       </div>
 

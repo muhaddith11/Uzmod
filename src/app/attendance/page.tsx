@@ -174,7 +174,7 @@ export default async function AttendancePage({
                         </TableCell>
                         <TableCell className="px-4">
                           <Badge variant="outline" className={STATE_CLASS[row.state]}>{stateLabel(t, row.state)}</Badge>
-                          {row.source === "MANAGER" && <div className="text-[10px] text-gray-400 mt-0.5">{A.sourceManager}</div>}
+                          {row.source && row.source !== "SELF" && <div className="text-[10px] text-gray-400 mt-0.5">{row.source === "DEVICE" ? A.sourceDevice : A.sourceManager}</div>}
                         </TableCell>
                         <TableCell className="px-4 font-mono text-sm">{time(row.checkIn)}</TableCell>
                         <TableCell className="px-4 font-mono text-sm">{time(row.checkOut)}</TableCell>
@@ -306,7 +306,7 @@ export default async function AttendancePage({
                         <TableCell className="px-4 font-mono text-sm">{time(r.checkOut)}</TableCell>
                         <TableCell className="px-4 font-mono text-sm">{r.checkIn ? formatDuration(r.workedMinutes) : t.common.none}</TableCell>
                         <TableCell className="px-4 text-xs text-gray-500">
-                          {r.source === "SELF" ? A.sourceSelf : `${A.sourceManager}${r.editedByName ? `: ${r.editedByName}` : ""}`}
+                          {r.source === "SELF" ? A.sourceSelf : r.source === "DEVICE" ? A.sourceDevice : `${A.sourceManager}${r.editedByName ? `: ${r.editedByName}` : ""}`}
                           {r.note && <div className="text-gray-400 max-w-48 truncate">{r.note}</div>}
                         </TableCell>
                         <TableCell className="px-4">

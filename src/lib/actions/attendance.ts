@@ -29,9 +29,10 @@ export async function getMyAttendanceToday() {
   const me = await getSessionUser()
   const now = new Date()
   const date = tashkentDateKey(now)
-  const [org, record] = await Promise.all([
+  const [org, record, devices] = await Promise.all([
     prisma.organization.findUniqueOrThrow({ where: { id: me.organizationId } }),
     prisma.attendance.findUnique({ where: { userId_date: { userId: me.id, date } } }),
+    prisma.attendanceDevice.count({ where: { organizationId: me.organizationId, isActive: true } }),
   ])
   const schedule = scheduleOf(org)
   const geo = geofenceOf(org)
@@ -40,6 +41,8 @@ export async function getMyAttendanceToday() {
     workStartTime: schedule.workStartTime,
     workEndTime: schedule.workEndTime,
     isWorkday: schedule.workDays.includes(isoWeekday(date)),
+    // Face ID qurilma bor bo'lsa, telefondan belgilash o'chiriladi
+    deviceMode: devices > 0,
     requireLocation: geo !== null,
     radius: geo?.radius ?? null,
     record: record
@@ -75,6 +78,8 @@ export async function getMyMonthSummary() {
  */
 async function checkLocation(me: SessionUser, formData: FormData) {
   const t = await getT()
+  const devices = await prisma.attendanceDevice.count({ where: { organizationId: me.organizationId, isActive: true } })
+  if (devices > 0) throw new ActionError(t.attendance.deviceMode)
   const locale = await getLocale()
   const f = fields(t)
   const coords = parseForm(z.object({

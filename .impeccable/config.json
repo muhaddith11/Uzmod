@@ -11,6 +11,15 @@
         ],
         "createdAt": "2026-10-21T15:39:10.850Z",
         "reason": "Claude triage: flat indigo-700 text on indigo-50 is the project's existing brand color (logo, nav, primary buttons app-wide); no gradient, no dark background"
+      },
+      {
+        "rule": "ai-color-palette",
+        "value": "*",
+        "files": [
+          "src/app/machines/page.tsx"
+        ],
+        "createdAt": "2026-10-22T10:12:21.583Z",
+        "reason": "Claude triage: L138 is a small flat indigo-600 icon beside a gray-900 heading on white — the project's existing brand accent used app-wide; no gradient, no dark background"
       }
     ]
   }

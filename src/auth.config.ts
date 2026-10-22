@@ -14,6 +14,8 @@ const ROUTE_ROLES: { prefix: string; allowed: Role[] }[] = [
   { prefix: "/customers", allowed: ["ADMIN", "MANAGER"] },
   { prefix: "/suppliers", allowed: ["ADMIN", "MANAGER"] },
   { prefix: "/attendance", allowed: ["ADMIN", "MANAGER"] },
+  { prefix: "/yarn", allowed: ["ADMIN", "MANAGER"] },
+  { prefix: "/settings", allowed: ["ADMIN"] },
 ]
 
 export const authConfig = {

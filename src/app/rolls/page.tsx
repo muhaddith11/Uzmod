@@ -1,3 +1,4 @@
+import { requireModule } from "@/lib/modules"
 import { getProducts } from "@/lib/actions/products"
 import { getWarehouses } from "@/lib/actions/warehouses"
 import { getSupplierOptions } from "@/lib/actions/suppliers"
@@ -24,6 +25,7 @@ const STATUS_CLASS: Record<string, string> = {
 }
 
 export default async function RollsPage() {
+  await requireModule("rolls")
   const me = await getSessionUser()
   const manager = isManagement(me.role)
   const [t, locale, products, warehouses, rolls, suppliers] = await Promise.all([

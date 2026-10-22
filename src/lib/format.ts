@@ -12,8 +12,20 @@ export function toNumber(value: Numeric): number {
   return Number.isFinite(n) ? n : 0
 }
 
+// Server (Node) va brauzerning ICU ma'lumotlari o'zbekcha uchun farq qiladi ("1 000" va
+// "1,000") — sahifa qayta chizilmasligi uchun ajratgichlar o'zimizda belgilanadi.
+// O'zbekiston va Rossiyada: ming — bo'shliq, kasr — vergul.
+const SEPARATORS: Record<Locale, { group: string; decimal: string }> = {
+  uz: { group: " ", decimal: "," },
+  ru: { group: " ", decimal: "," },
+}
+
 export function formatNumber(value: Numeric, locale: Locale, maxFractionDigits = 2): string {
-  return new Intl.NumberFormat(INTL_LOCALE[locale], { maximumFractionDigits: maxFractionDigits }).format(toNumber(value))
+  const sep = SEPARATORS[locale]
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: maxFractionDigits })
+    .formatToParts(toNumber(value))
+    .map(part => (part.type === "group" ? sep.group : part.type === "decimal" ? sep.decimal : part.value))
+    .join("")
 }
 
 export function formatMoney(value: Numeric, locale: Locale): string {

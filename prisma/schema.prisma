@@ -24,6 +24,8 @@ model Organization {
   geoLat           Float?
   geoLng           Float?
   geoRadiusM       Int?
+  // Yashirilgan bo'limlar (vergul bilan): suppliers, rolls, bomProduction, sales, finance ...
+  disabledModules  String @default("suppliers,rolls,bomProduction")
 
   users            User[]
   products         Product[]
@@ -38,6 +40,11 @@ model Organization {
   suppliers        Supplier[]
   supplierPayments SupplierPayment[]
   attendance       Attendance[]
+  machines         Machine[]
+  machineRuns      MachineRun[]
+  machineEvents    MachineRunEvent[]
+  devices          AttendanceDevice[]
+  devicePunches    DevicePunch[]
 }
 
 // 2. Foydalanuvchilar (Auth uchun)
@@ -57,6 +64,8 @@ model User {
   sessionVersion             Int       @default(0)
   // Davomatda: qo'shilgan kundan oldingi kunlar "kelmagan" hisoblanmaydi
   createdAt                  DateTime  @default(now())
+  // Face ID qurilmadagi xodim raqami (PIN)
+  deviceUserId               String?
 
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -72,7 +81,11 @@ model User {
   createdSupplierPayments SupplierPayment[] @relation("SupplierPaymentCreator")
   attendance              Attendance[]      @relation("AttendanceUser")
   editedAttendance        Attendance[]      @relation("AttendanceEditor")
+  machineWork             MachineRunEvent[] @relation("MachineEventWorker")
+  machineEventsCreated    MachineRunEvent[] @relation("MachineEventCreator")
+  devicePunches           DevicePunch[]
 
+  @@unique([organizationId, deviceUserId])
   @@index([organizationId])
 }
 
@@ -96,6 +109,8 @@ model Warehouse {
   movementsTo   StockMovement[] @relation("ToWarehouse")
   rolls         Roll[]
   sales         Sale[]
+  rawRuns       MachineRun[] @relation("RunRawWarehouse")
+  goodsRuns     MachineRun[] @relation("RunGoodsWarehouse")
 
   @@index([organizationId])
 }
@@ -116,6 +131,9 @@ model Product {
   costPrice      Decimal @default(0) @db.Decimal(15, 2)
   productionWage Decimal @default(0) @db.Decimal(15, 2)
   minStockLevel  Decimal @default(0) @db.Decimal(15, 2)
+  // Ip (kalava) uchun: turi (Supreme, X/B, Sintetik) va rangi (Qora, Oq)
+  yarnType       String?
+  color          String?
 
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -127,6 +145,8 @@ model Product {
   movements   StockMovement[]
   saleItems   SaleItem[]
   rolls       Roll[]
+  yarnRuns    MachineRun[] @relation("RunYarn")
+  sockRuns    MachineRun[] @relation("RunProduct")
 
   @@index([organizationId])
   @@index([organizationId, isRawMaterial])
@@ -194,6 +214,10 @@ model StockMovement {
   saleId String?
   sale   Sale?   @relation(fields: [saleId], references: [id], onDelete: SetNull)
 
+  // Stanok ishi (ip berish, sanash, qoldiqni qaytarish)
+  machineRunId String?
+  machineRun   MachineRun? @relation(fields: [machineRunId], references: [id], onDelete: SetNull)
+
   note           String?
   creatorId      String?
   creator        User?        @relation("CreatorMovements", fields: [creatorId], references: [id], onDelete: SetNull)
@@ -206,6 +230,7 @@ model StockMovement {
   @@index([organizationId, createdAt])
   @@index([supplierId])
   @@index([saleId])
+  @@index([machineRunId])
 }
 
 // 8. Mato Rulonlari (Tikuv sehi uchun maxsus)
@@ -426,6 +451,9 @@ enum MovementType {
   WASTAGE
   REVISION
   RETURN
+  // Ip stanokka berildi / stanokdan qaytdi
+  TO_MACHINE
+  FROM_MACHINE
 }
 
 // 14. Kirish va ro'yxatdan o'tish urinishlarini cheklash (serverless'da xotira
@@ -481,4 +509,134 @@ enum AttendanceStatus {
 enum AttendanceSource {
   SELF
   MANAGER
+  DEVICE
+}
+
+// 16. Stanoklar — paypoq to'quv mashinalari
+model Machine {
+  id       String  @id @default(cuid())
+  number   Int
+  // Guruh: bir xil turdagi stanoklar (masalan, "A" — 53 ta, "B" — 46 ta)
+  group    String
+  note     String?
+  isActive Boolean @default(true)
+
+  runs MachineRun[]
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, number])
+  @@index([organizationId])
+}
+
+// Stanok ishi: bitta ip, bitta model va bitta grammda — ip yoki model almashguncha ochiq
+model MachineRun {
+  id        String  @id @default(cuid())
+  machineId String
+  machine   Machine @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  yarnId    String
+  yarn      Product @relation("RunYarn", fields: [yarnId], references: [id])
+  productId String
+  product   Product @relation("RunProduct", fields: [productId], references: [id])
+  // Bitta paypoq (dona) og'irligi, gramm
+  gramsPerSock Float
+
+  status       MachineRunStatus @default(OPEN)
+  issuedKg     Float            @default(0)
+  countedPairs Float            @default(0)
+  // Yakunlanganda stanokda qolgan ip (omborga qaytadi)
+  leftoverKg   Float?
+
+  rawWarehouseId   String
+  rawWarehouse     Warehouse @relation("RunRawWarehouse", fields: [rawWarehouseId], references: [id])
+  goodsWarehouseId String
+  goodsWarehouse   Warehouse @relation("RunGoodsWarehouse", fields: [goodsWarehouseId], references: [id])
+
+  startedAt   DateTime  @default(now())
+  closedAt    DateTime?
+  startedById String?
+  closedById  String?
+
+  events    MachineRunEvent[]
+  movements StockMovement[]
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@index([machineId, status])
+}
+
+enum MachineRunStatus {
+  OPEN
+  CLOSED
+}
+
+model MachineRunEvent {
+  id       String           @id @default(cuid())
+  runId    String
+  run      MachineRun       @relation(fields: [runId], references: [id], onDelete: Cascade)
+  type     MachineEventType
+  // ISSUE/RETURN — kg, COUNT — juft
+  quantity Float
+  note     String?
+
+  workerId    String?
+  worker      User?   @relation("MachineEventWorker", fields: [workerId], references: [id], onDelete: SetNull)
+  createdById String?
+  createdBy   User?   @relation("MachineEventCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@index([runId])
+  @@index([organizationId, createdAt])
+}
+
+enum MachineEventType {
+  ISSUE
+  COUNT
+  RETURN
+}
+
+// 17. Face ID qurilmalar (ZKTeco ADMS) va ulardan kelgan belgilar
+model AttendanceDevice {
+  id           String    @id @default(cuid())
+  serialNumber String    @unique
+  name         String
+  isActive     Boolean   @default(true)
+  lastSeenAt   DateTime?
+
+  punches DevicePunch[]
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+}
+
+model DevicePunch {
+  id        String           @id @default(cuid())
+  deviceId  String
+  device    AttendanceDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  // Qurilmadagi xodim raqami
+  pin       String
+  punchedAt DateTime
+  // Qurilma holati va tasdiqlash usuli (yuz, barmoq, karta) — xom ko'rinishda
+  rawStatus Int?
+  verify    Int?
+  // Xodim topilgan bo'lsa davomatga yoziladi
+  userId    String?
+  user      User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@unique([deviceId, pin, punchedAt])
+  @@index([organizationId, punchedAt])
 }

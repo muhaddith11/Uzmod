@@ -1,3 +1,4 @@
+import { requireModule } from "@/lib/modules"
 import { getSuppliers, getSupplierActivity, createSupplier, paySupplier, deleteSupplier } from "@/lib/actions/suppliers"
 import { ActionForm } from "@/components/ui/action-form"
 import { FormDialog } from "@/components/ui/form-dialog"
@@ -14,6 +15,7 @@ import { formatDateTime, formatMoney, formatNumber } from "@/lib/format"
 import { TruckIcon, PlusIcon, BanknoteIcon, PackageIcon, HistoryIcon } from "lucide-react"
 
 export default async function SuppliersPage() {
+  await requireModule("suppliers")
   const [t, locale, suppliers, activity] = await Promise.all([getT(), getLocale(), getSuppliers(), getSupplierActivity(30)])
   const S = t.suppliers
   const totalDebt = suppliers.reduce((acc, s) => acc + Math.max(s.debt, 0), 0)

@@ -9,6 +9,7 @@ import { action, ActionError } from "@/lib/action"
 import { fields, parseForm } from "@/lib/validation"
 import { getT } from "@/i18n/server"
 import { parseDateRange, type DateRangeParams } from "@/lib/tz"
+import { relinkPunches } from "@/lib/device-attendance"
 
 /**
  * Tashkilotdagi barcha xodimlar (boshqaruv ro'yxati uchun). passwordHash sahifaga
@@ -18,7 +19,7 @@ export async function getStaff() {
   const { organizationId: orgId } = await requireRole('ADMIN', 'MANAGER')
   return await prisma.user.findMany({
     where: { organizationId: orgId },
-    select: { id: true, name: true, email: true, role: true, telegramId: true, isActive: true },
+    select: { id: true, name: true, email: true, role: true, telegramId: true, isActive: true, deviceUserId: true },
     orderBy: [{ isActive: 'desc' }, { role: 'asc' }, { name: 'asc' }]
   })
 }
@@ -246,4 +247,36 @@ export const deleteAdjustment = action(async function deleteAdjustment(id: strin
   })
   if (count === 0) throw new ActionError(t.errors.recordNotFound)
   revalidatePath("/workers")
+})
+
+/**
+ * Xodimning Face ID qurilmadagi raqami (User ID). Raqam berilgach, shu raqam
+ * bilan avval kelgan belgilar ham davomatga o'tkaziladi. Bo'sh — raqam olib tashlanadi.
+ */
+export const setEmployeeDeviceId = action(async function setEmployeeDeviceId(formData: FormData) {
+  const me = await requireRole('ADMIN', 'MANAGER')
+  const t = await getT()
+  const f = fields(t)
+  const input = parseForm(z.object({
+    userId: f.id(t.workers.employee),
+    deviceUserId: f.optionalText(t.workers.deviceId, 20),
+  }), formData)
+
+  // Admin o'ziga ham raqam bera oladi (u ham qurilmadan o'tishi mumkin)
+  const target = input.userId === me.id && me.role === 'ADMIN'
+    ? { id: me.id }
+    : await findManageableUser(me, input.userId)
+  const pin = input.deviceUserId?.replace(/\s/g, "") || null
+
+  try {
+    await prisma.user.update({ where: { id: target.id }, data: { deviceUserId: pin } })
+  } catch (error) {
+    if ((error as { code?: string })?.code === 'P2002') throw new ActionError(t.workers.deviceIdTaken)
+    throw error
+  }
+  if (pin) await relinkPunches(me.organizationId, pin, target.id)
+
+  revalidatePath("/workers")
+  revalidatePath("/attendance")
+  revalidatePath("/settings")
 })

@@ -1,3 +1,4 @@
+import { requireModule } from "@/lib/modules"
 import { getProducts } from "@/lib/actions/products"
 import { getWarehouses } from "@/lib/actions/warehouses"
 import { getProductionLogs } from "@/lib/actions/production"
@@ -12,6 +13,7 @@ import { formatDateTime, formatMoney, formatNumber } from "@/lib/format"
 import { HammerIcon, HistoryIcon, ArrowRightIcon } from "lucide-react"
 
 export default async function ProductionPage() {
+  await requireModule("bomProduction")
   const me = await getSessionUser()
   const manager = isManagement(me.role)
   const [t, locale, products, warehouses, workers, logs] = await Promise.all([

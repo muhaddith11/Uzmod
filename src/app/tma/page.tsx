@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { signIn } from "next-auth/react"
 import Script from "next/script"
+import Link from "next/link"
 import { authenticateTMA, getTmaData } from "@/lib/actions/tma"
 import { produceProduct } from "@/lib/actions/production"
 import { createRolls, getRollOptionsForProduct } from "@/lib/actions/rolls"
@@ -14,7 +15,7 @@ import { CheckInCard } from "@/components/attendance/CheckInCard"
 import { useLocale, useT } from "@/i18n/client"
 import { formatNumber } from "@/lib/format"
 import { QTY_EPSILON } from "@/lib/domain/costing"
-import { HammerIcon, Loader2Icon, CheckCircle2Icon, AlertCircleIcon, LayersIcon, WeightIcon, DiscIcon, ClockIcon } from "lucide-react"
+import { HammerIcon, Loader2Icon, CheckCircle2Icon, AlertCircleIcon, LayersIcon, WeightIcon, DiscIcon, ClockIcon, CogIcon } from "lucide-react"
 
 type RollOption = {
   materialId: string
@@ -44,6 +45,7 @@ export default function TMAPage() {
   const [gate, setGate] = useState<Gate>({ kind: "loading" })
   const [sdkReady, setSdkReady] = useState(false)
   const [products, setProducts] = useState<TmaProduct[]>([])
+  const [sections, setSections] = useState({ production: false, rolls: false })
   const [warehouses, setWarehouses] = useState<{ id: string; name: string }[]>([])
   const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -89,6 +91,7 @@ export default function TMAPage() {
         const data = await getTmaData()
         if (cancelled) return
         setProducts(data.products)
+        setSections({ production: data.showProduction, rolls: data.showRolls })
         setWarehouses(data.warehouses)
         if (data.warehouses[0]) setProdFromWh(data.warehouses[0].id)
         setGate({ kind: "ready", user: result.user })
@@ -195,16 +198,19 @@ export default function TMAPage() {
       </header>
 
       <Tabs defaultValue="attendance" className="w-full">
-        <TabsList className="grid grid-cols-3 bg-gray-100 rounded-2xl p-1 mb-4 h-12 w-full">
+        <Link href="/machines" className="mb-4 flex items-center justify-center gap-2 h-14 rounded-2xl bg-indigo-600 text-white text-lg font-black">
+          <CogIcon className="w-5 h-5" /> {M.openMachines}
+        </Link>
+        <TabsList className={`grid bg-gray-100 rounded-2xl p-1 mb-4 h-12 w-full ${["grid-cols-1", "grid-cols-2", "grid-cols-3"][Number(sections.production) + Number(sections.rolls)]}`}>
           <TabsTrigger value="attendance" className="rounded-xl font-bold text-xs">
             <ClockIcon className="w-4 h-4 mr-1" /> {M.tabAttendance}
           </TabsTrigger>
-          <TabsTrigger value="production" className="rounded-xl font-bold text-xs">
+          {sections.production && <TabsTrigger value="production" className="rounded-xl font-bold text-xs">
             <HammerIcon className="w-4 h-4 mr-1" /> {M.tabProduction}
-          </TabsTrigger>
-          <TabsTrigger value="rolls" className="rounded-xl font-bold text-xs">
+          </TabsTrigger>}
+          {sections.rolls && <TabsTrigger value="rolls" className="rounded-xl font-bold text-xs">
             <LayersIcon className="w-4 h-4 mr-1" /> {M.tabRolls}
-          </TabsTrigger>
+          </TabsTrigger>}
         </TabsList>
 
         <TabsContent value="attendance">

@@ -14,7 +14,7 @@ export async function getDashboardData() {
   const todayStart = startOfTashkentDayFor(now)
   const days = lastTashkentDays(7, now)
 
-  const [topItems, warehouseCount, rawMaterials, production, producedToday, salesToday, openRolls] = await Promise.all([
+  const [topItems, warehouseCount, rawMaterials, production, producedToday, salesToday, openRolls, machines, runningMachines, yarnToday] = await Promise.all([
     // Oxirgi 30 kunda eng ko'p sotilganlar (bekor qilinganlar hisobga olinmaydi)
     prisma.saleItem.groupBy({
       by: ['productId'],
@@ -44,6 +44,12 @@ export async function getDashboardData() {
         })
       : Promise.resolve(null),
     prisma.roll.count({ where: { organizationId: orgId, status: { not: 'FINISHED' } } }),
+    prisma.machine.count({ where: { organizationId: orgId, isActive: true } }),
+    prisma.machineRun.count({ where: { organizationId: orgId, status: 'OPEN' } }),
+    prisma.stockMovement.aggregate({
+      where: { organizationId: orgId, type: 'IN', createdAt: { gte: todayStart }, product: { yarnType: { not: null } } },
+      _sum: { quantity: true },
+    }),
   ])
 
   const names = await prisma.product.findMany({
@@ -81,5 +87,8 @@ export async function getDashboardData() {
     producedToday: producedToday._sum.quantity ?? 0,
     salesToday: salesToday ? Number(salesToday._sum.totalAmount ?? 0) : null,
     openRolls,
+    machines,
+    runningMachines,
+    yarnTodayKg: yarnToday._sum.quantity ?? 0,
   }
 }

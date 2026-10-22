@@ -1,3 +1,4 @@
+import { requireModule } from "@/lib/modules"
 import { getCustomers, createCustomer, deleteCustomer, repayDebt, getDebtPayments } from "@/lib/actions/customers"
 import { ActionForm } from "@/components/ui/action-form"
 import { FormDialog } from "@/components/ui/form-dialog"
@@ -14,6 +15,7 @@ import { formatDateTime, formatMoney } from "@/lib/format"
 import { UsersIcon, UserPlusIcon, BanknoteIcon, HistoryIcon } from "lucide-react"
 
 export default async function CustomersPage() {
+  await requireModule("sales")
   const [t, locale, customers, payments] = await Promise.all([getT(), getLocale(), getCustomers(), getDebtPayments(30)])
   const C = t.customers
   const totalDebt = customers.reduce((acc, c) => acc + Math.max(c.debt, 0), 0)
