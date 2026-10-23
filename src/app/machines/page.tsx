@@ -38,7 +38,7 @@ export default async function MachinesPage({
       <PageHeader icon={<CogIcon className="text-indigo-600" />} title={M.title} subtitle={M.subtitle} />
 
       {board.machines.length === 0 ? (
-        <Card className="shadow-sm border-none bg-white">
+        <Card>
           <CardContent className="pt-6 space-y-4">
             <p className="text-gray-500">{M.noMachines}</p>
             {me.role === "ADMIN" && <AddMachinesForm t={t} />}
@@ -46,14 +46,14 @@ export default async function MachinesPage({
         </Card>
       ) : (
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 items-start">
-          <Card className="xl:col-span-2 shadow-sm border-none bg-white min-w-0">
+          <Card className="xl:col-span-2 min-w-0">
             <CardContent className="pt-6">
               <MachineBoard board={board} options={options} canManage={manager} />
             </CardContent>
           </Card>
 
           <div className="space-y-6">
-            <Card className="shadow-sm border-none bg-white">
+            <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2"><PlayIcon className="w-5 h-5 text-green-600" />{M.loadTitle}</CardTitle>
                 <CardDescription>{M.loadHint(board.autoTransferHours)}</CardDescription>
@@ -63,7 +63,7 @@ export default async function MachinesPage({
               </CardContent>
             </Card>
             {me.role === "ADMIN" && (
-              <Card className="shadow-sm border-none bg-white">
+              <Card>
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2"><PlusIcon className="w-5 h-5 text-indigo-600" />{M.addTitle}</CardTitle>
                 </CardHeader>
@@ -79,17 +79,17 @@ export default async function MachinesPage({
           <h2 className="text-xl font-black text-gray-900 flex items-center gap-2"><BarChart3Icon className="w-5 h-5 text-indigo-600" />{M.reportTitle}</h2>
           <DateRangeFilter basePath="/machines" from={range.from} to={range.to} allowAllTime={false} />
           <p className="text-xs text-gray-500 px-1 -mt-2">{M.reportHint}</p>
-          <Card className="shadow-sm border-none bg-white overflow-hidden">
+          <Card className="overflow-hidden pb-0">
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-gray-50/50">
-                    <TableHead className="px-4 font-bold">{M.colMachine}</TableHead>
-                    <TableHead className="px-4 font-bold">{M.colYarn}</TableHead>
-                    <TableHead className="px-4 font-bold text-right">{M.colGram}</TableHead>
-                    <TableHead className="px-4 font-bold text-right">{M.colKg}</TableHead>
-                    <TableHead className="px-4 font-bold text-right">{M.colSocks}</TableHead>
-                    <TableHead className="px-4 font-bold">{M.colStatus}</TableHead>
+                    <TableHead className="px-4">{M.colMachine}</TableHead>
+                    <TableHead className="px-4">{M.colYarn}</TableHead>
+                    <TableHead className="px-4 text-right">{M.colGram}</TableHead>
+                    <TableHead className="px-4 text-right">{M.colKg}</TableHead>
+                    <TableHead className="px-4 text-right">{M.colSocks}</TableHead>
+                    <TableHead className="px-4">{M.colStatus}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

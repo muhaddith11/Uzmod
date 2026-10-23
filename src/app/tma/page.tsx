@@ -11,11 +11,10 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CheckInCard } from "@/components/attendance/CheckInCard"
 import { useLocale, useT } from "@/i18n/client"
 import { formatNumber } from "@/lib/format"
 import { QTY_EPSILON } from "@/lib/domain/costing"
-import { HammerIcon, Loader2Icon, CheckCircle2Icon, AlertCircleIcon, LayersIcon, WeightIcon, DiscIcon, ClockIcon, CogIcon } from "lucide-react"
+import { HammerIcon, Loader2Icon, CheckCircle2Icon, AlertCircleIcon, LayersIcon, WeightIcon, DiscIcon, CogIcon } from "lucide-react"
 
 type RollOption = {
   materialId: string
@@ -197,25 +196,21 @@ export default function TMAPage() {
         <div className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-[10px] font-black uppercase">{M.online}</div>
       </header>
 
-      <Tabs defaultValue="attendance" className="w-full">
+      {/* Davomat Face ID qurilmada — bu yerda faqat stanoklar va (yoqilgan bo'lsa) eski bo'limlar */}
+      <Tabs defaultValue={sections.production ? "production" : "rolls"} className="w-full">
         <Link href="/machines" className="mb-4 flex items-center justify-center gap-2 h-14 rounded-2xl bg-indigo-600 text-white text-lg font-black">
           <CogIcon className="w-5 h-5" /> {M.openMachines}
         </Link>
-        <TabsList className={`grid bg-gray-100 rounded-2xl p-1 mb-4 h-12 w-full ${["grid-cols-1", "grid-cols-2", "grid-cols-3"][Number(sections.production) + Number(sections.rolls)]}`}>
-          <TabsTrigger value="attendance" className="rounded-xl font-bold text-xs">
-            <ClockIcon className="w-4 h-4 mr-1" /> {M.tabAttendance}
-          </TabsTrigger>
-          {sections.production && <TabsTrigger value="production" className="rounded-xl font-bold text-xs">
-            <HammerIcon className="w-4 h-4 mr-1" /> {M.tabProduction}
-          </TabsTrigger>}
-          {sections.rolls && <TabsTrigger value="rolls" className="rounded-xl font-bold text-xs">
-            <LayersIcon className="w-4 h-4 mr-1" /> {M.tabRolls}
-          </TabsTrigger>}
-        </TabsList>
-
-        <TabsContent value="attendance">
-          <CheckInCard className="rounded-3xl" />
-        </TabsContent>
+        {(sections.production || sections.rolls) && (
+          <TabsList className={`grid bg-gray-100 rounded-2xl p-1 mb-4 h-12 w-full ${sections.production && sections.rolls ? "grid-cols-2" : "grid-cols-1"}`}>
+            {sections.production && <TabsTrigger value="production" className="rounded-xl font-bold text-xs">
+              <HammerIcon className="w-4 h-4 mr-1" /> {M.tabProduction}
+            </TabsTrigger>}
+            {sections.rolls && <TabsTrigger value="rolls" className="rounded-xl font-bold text-xs">
+              <LayersIcon className="w-4 h-4 mr-1" /> {M.tabRolls}
+            </TabsTrigger>}
+          </TabsList>
+        )}
 
         <TabsContent value="production">
           <Card className="rounded-3xl shadow-sm border-none bg-white">

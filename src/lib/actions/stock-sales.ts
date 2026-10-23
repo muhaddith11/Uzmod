@@ -11,8 +11,8 @@ import { serializable, type Tx } from "@/lib/db"
 import { addStock, takeStock } from "@/lib/inventory"
 import { QTY_EPSILON, roundMoney, roundQty } from "@/lib/domain/costing"
 import { batchLabel, socksFromKg } from "@/lib/domain/machines"
-import { defaultWarehouseId, settleDueLoads } from "@/lib/workshop"
-import { formatNumber } from "@/lib/format"
+import { defaultWarehouseId, settleDueLoads, wasteInStock } from "@/lib/workshop"
+import { formatNumber, personName } from "@/lib/format"
 import { parseDateRange, type DateRangeParams } from "@/lib/tz"
 import { getLocale, getT } from "@/i18n/server"
 
@@ -23,13 +23,16 @@ function revalidateSales() {
   revalidatePath("/")
 }
 
-const KINDS = ["YARN", "FINISHED", "DEFECT"] as const satisfies readonly StockSaleKind[]
+const KINDS = ["YARN", "FINISHED", "DEFECT", "WASTE"] as const satisfies readonly StockSaleKind[]
+// Otxot partiyaga bog'lanmaydi — formada bitta umumiy qator
+const WASTE_ITEM = "WASTE:all"
 
-/** Sotuv formasi: faqat omborda bor narsalar — ip, tayyor partiya, brak */
+/** Sotuv formasi: faqat omborda bor narsalar — ip, tayyor partiya, brak, otxot */
 export async function getSaleOptions() {
   const { organizationId } = await requireRole('ADMIN', 'MANAGER')
   await settleDueLoads(organizationId)
-  const [yarns, batches, customers] = await Promise.all([
+  const t = await getT()
+  const [yarns, batches, customers, wasteKg] = await Promise.all([
     prisma.product.findMany({
       where: { organizationId, isRawMaterial: true, yarnType: { not: null } },
       include: { stockLevels: { select: { quantity: true } } },
@@ -45,6 +48,7 @@ export async function getSaleOptions() {
       select: { id: true, name: true, phone: true, debt: true },
       orderBy: { name: 'asc' },
     }),
+    wasteInStock(prisma, organizationId),
   ])
 
   const items: { value: string; kind: StockSaleKind; label: string; availableKg: number; gramsPerSock: number | null }[] = []
@@ -57,6 +61,9 @@ export async function getSaleOptions() {
     const kg = roundQty(y.stockLevels.reduce((acc, sl) => acc + sl.quantity, 0))
     if (kg > QTY_EPSILON) items.push({ value: `YARN:${y.id}`, kind: 'YARN', label: y.name, availableKg: kg, gramsPerSock: null })
   }
+  if (wasteKg > QTY_EPSILON) {
+    items.push({ value: WASTE_ITEM, kind: 'WASTE', label: t.stockSales.kinds.WASTE, availableKg: wasteKg, gramsPerSock: null })
+  }
 
   return {
     items,
@@ -64,13 +71,18 @@ export async function getSaleOptions() {
   }
 }
 
-function saleLabel(sale: { kind: StockSaleKind; yarn: { name: string } | null; batch: { date: string; gramsPerSock: number; yarn: { name: string } } | null }) {
+function saleLabel(
+  sale: { kind: StockSaleKind; yarn: { name: string } | null; batch: { date: string; gramsPerSock: number; yarn: { name: string } } | null },
+  wasteLabel: string,
+) {
   if (sale.batch) return batchLabel(sale.batch.date, sale.batch.yarn.name, sale.batch.gramsPerSock)
+  if (sale.kind === 'WASTE') return wasteLabel
   return sale.yarn?.name ?? "—"
 }
 
 export async function getStockSales(range: DateRangeParams = {}) {
   const { organizationId } = await requireRole('ADMIN', 'MANAGER')
+  const t = await getT()
   const createdAt = parseDateRange(range)
   const sales = await prisma.stockSale.findMany({
     where: { organizationId, ...(createdAt ? { createdAt } : {}) },
@@ -89,7 +101,7 @@ export async function getStockSales(range: DateRangeParams = {}) {
     return {
       id: s.id,
       kind: s.kind,
-      label: saleLabel(s),
+      label: saleLabel(s, t.stockSales.kinds.WASTE),
       kg: s.kg,
       socks: s.batch ? socksFromKg(s.kg, s.batch.gramsPerSock) : null,
       total,
@@ -97,7 +109,7 @@ export async function getStockSales(range: DateRangeParams = {}) {
       debt: roundMoney(total - paid),
       customerName: s.customer?.name ?? null,
       note: s.note,
-      createdByName: s.createdBy?.name ?? s.createdBy?.email ?? null,
+      createdByName: s.createdBy ? personName(s.createdBy) : null,
       createdAt: s.createdAt,
     }
   })
@@ -172,6 +184,10 @@ export const createStockSale = action(async function createStockSale(formData: F
         },
       })
       yarnId = yarn.id
+    } else if (kind === 'WASTE') {
+      if (input.item !== WASTE_ITEM) throw new ActionError(S.itemNotFound)
+      const available = await wasteInStock(tx, me.organizationId)
+      if (kg > available + QTY_EPSILON) throw notEnough(available)
     } else {
       const batch = await tx.batch.findFirst({ where: { id: refId, organizationId: me.organizationId } })
       if (!batch) throw new ActionError(S.itemNotFound)
@@ -227,6 +243,7 @@ export const cancelStockSale = action(async function cancelStockSale(saleId: str
         data: { batchId: sale.batchId, type: 'SALE_CANCEL', kg: sale.kg, saleId: sale.id, createdById: me.id, organizationId: me.organizationId },
       })
     }
+    // Otxot sotuvi alohida qaytarilmaydi: sotuv o'chgach ombordagi otxot o'zi tiklanadi
 
     const unpaid = roundMoney(Number(sale.totalAmount) - Number(sale.paidAmount))
     if (sale.customerId && unpaid > 0) {

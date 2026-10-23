@@ -20,7 +20,7 @@ class RateLimitedError extends CredentialsSignin {
 
 type AuthUser = {
   id: string
-  email: string
+  email: string | null
   name: string | null
   organizationId: string
   role: "ADMIN" | "MANAGER" | "WORKER"
@@ -81,7 +81,8 @@ export const {
         const user = await prisma.user.findFirst({
           where: { email: { equals: email, mode: "insensitive" } },
         })
-        if (!user) return null
+        // Paroli yo'q xodim (sex ishchisi) tizimga kirmaydi
+        if (!user?.passwordHash) return null
 
         const passwordsMatch = await bcrypt.compare(password, user.passwordHash)
         if (!passwordsMatch) return null

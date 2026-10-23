@@ -1,14 +1,15 @@
 import type { Attendance, Organization, Role } from "@prisma/client"
 import { socksFromKg } from "@/lib/domain/machines"
 import { prisma } from "@/lib/prisma"
+import { personName } from "@/lib/format"
 import { parseDateRange, tashkentDateKey, type DateRangeParams } from "@/lib/tz"
 import { parseWorkDays, summarizeAttendance, type DayRecord, type Schedule } from "@/lib/domain/attendance"
+import type { BoardState } from "@/lib/actions/attendance"
+import type { Messages } from "@/i18n/messages"
 
 // Davomat uchun server yordamchilari (server action fayli emas — tashqaridan chaqirilmaydi)
 
 const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/
-
-export type Geofence = { lat: number; lng: number; radius: number }
 
 export function scheduleOf(org: Pick<Organization, "workStartTime" | "workEndTime" | "lateGraceMinutes" | "workDays">): Schedule {
   return {
@@ -19,9 +20,17 @@ export function scheduleOf(org: Pick<Organization, "workStartTime" | "workEndTim
   }
 }
 
-export function geofenceOf(org: Pick<Organization, "geoLat" | "geoLng" | "geoRadiusM">): Geofence | null {
-  if (org.geoLat === null || org.geoLng === null || !org.geoRadiusM) return null
-  return { lat: org.geoLat, lng: org.geoLng, radius: org.geoRadiusM }
+/** Bugungi holat nomi (sahifa va Word hisobot uchun) */
+export function boardStateLabel(t: Messages, state: BoardState): string {
+  const A = t.attendance
+  switch (state) {
+    case "inWork": return A.board.inWork
+    case "left": return A.board.left
+    case "absent": return A.board.absent
+    case "notYet": return A.board.notYet
+    case "dayOff": return A.board.dayOff
+    default: return A.status[state]
+  }
 }
 
 export function toDayRecord(a: Pick<Attendance, "date" | "status" | "checkIn" | "checkOut">): DayRecord {
@@ -42,7 +51,7 @@ export const TRACKED_ROLES: Role[] = ["WORKER", "MANAGER"]
 export type TimesheetRow = {
   userId: string
   name: string
-  email: string
+  email: string | null
   role: Role
   isActive: boolean
   summary: ReturnType<typeof summarizeAttendance>
@@ -109,7 +118,7 @@ export async function buildTimesheet(organizationId: string, range: { from: stri
       const hours = summary.workedMinutes / 60
       return {
         userId: u.id,
-        name: u.name ?? u.email,
+        name: personName(u),
         email: u.email,
         role: u.role,
         isActive: u.isActive,

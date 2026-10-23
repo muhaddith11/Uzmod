@@ -25,19 +25,19 @@ export default async function ProfilePage() {
       <PageHeader icon={<UserIcon className="text-blue-600" />} title={P.title} subtitle={P.subtitle} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="border-none shadow-sm bg-white">
+        <Card>
           <CardHeader>
             <CardTitle>{P.basicInfo}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <Info label={P.fullName} value={user.name ?? "—"} />
-            <Info label={t.auth.email} value={user.email} />
+            <Info label={t.auth.email} value={user.email ?? "—"} />
             <Info label={P.organization} value={user.organization.name} accent />
             <Info label={P.role} value={t.common.roles[user.role]} />
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm bg-white">
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <KeyRoundIcon className="w-5 h-5 text-indigo-600" />
@@ -63,7 +63,7 @@ export default async function ProfilePage() {
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm bg-white overflow-hidden md:col-span-2">
+        <Card className="overflow-hidden md:col-span-2 pb-0">
           <CardHeader className="bg-blue-50/50">
             <CardTitle className="flex items-center gap-2 text-blue-700">
               <SendIcon className="w-5 h-5" />

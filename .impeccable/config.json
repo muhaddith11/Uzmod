@@ -20,6 +20,15 @@
         ],
         "createdAt": "2026-10-22T10:12:21.583Z",
         "reason": "Claude triage: L138 is a small flat indigo-600 icon beside a gray-900 heading on white — the project's existing brand accent used app-wide; no gradient, no dark background"
+      },
+      {
+        "rule": "ai-color-palette",
+        "value": "*",
+        "files": [
+          "src/components/Navbar.tsx"
+        ],
+        "createdAt": "2026-10-23T06:29:23.588Z",
+        "reason": "Claude triage: flat indigo-600 UZMOD wordmark on a white bar is the project's existing brand color (same logo color before this change, used app-wide); no gradient, no dark background"
       }
     ]
   }

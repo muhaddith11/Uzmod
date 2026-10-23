@@ -63,6 +63,11 @@ export function formatShortDay(value: Date, locale: Locale): string {
   }).format(value)
 }
 
+/** Ko'rsatiladigan ism: ism-sharif, bo'lmasa login (sex ishchilarida login yo'q) */
+export function personName(user: { name: string | null; email: string | null }): string {
+  return user.name ?? user.email ?? "—"
+}
+
 /** Pul summasini tiyingacha yaxlitlaydi (float yig'ilish xatolarini kesadi) */
 export function roundMoney(value: number): number {
   return Math.round(value * 100) / 100
@@ -75,6 +80,13 @@ export function formatTime(value: Date | string, locale: Locale): string {
     minute: "2-digit",
     hour12: false,
   }).format(new Date(value))
+}
+
+/** "23.10.2026" — Toshkent kuni, tilga bog'liq emas (Word hisobotlar uchun). "YYYY-MM-DD" kalit ham qabul qilinadi */
+export function formatDotDate(value: Date | string): string {
+  const key = typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : tashkentDateKey(new Date(value))
+  const [year, month, day] = key.split("-")
+  return `${day}.${month}.${year}`
 }
 
 /** "22.10 08:00" — Toshkent vaqtida, yilsiz (tilga bog'liq emas — server va brauzerda bir xil) */

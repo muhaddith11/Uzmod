@@ -20,7 +20,7 @@ export default async function WarehousesPage() {
       <PageHeader icon={<WarehouseIcon className="text-blue-600" />} title={W.title} subtitle={W.subtitle} />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
-        <Card className="md:col-span-1 shadow-sm border-none bg-white">
+        <Card className="md:col-span-1">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <PlusIcon className="w-5 h-5 text-blue-600" />

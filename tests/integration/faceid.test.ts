@@ -2,9 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { prisma } from "@/lib/prisma"
 import { GET as cdataGet, POST as cdataPost } from "@/app/iclock/cdata/route"
 import { GET as getRequest } from "@/app/iclock/getrequest/route"
-import { addDevice, updateModules } from "@/lib/actions/settings"
-import { setEmployeeDeviceId } from "@/lib/actions/workers"
-import { checkIn, getMyAttendanceToday, saveAttendance } from "@/lib/actions/attendance"
+import { addDevice } from "@/lib/actions/settings"
+import { createEmployee, resetEmployeePassword, setEmployeeDeviceId } from "@/lib/actions/workers"
+import { saveAttendance } from "@/lib/actions/attendance"
+import { getEnabledModules } from "@/lib/modules"
 import { asUser, form, resetDb, seedWorkshop } from "../helpers"
 
 let w: Awaited<ReturnType<typeof seedWorkshop>>
@@ -80,20 +81,28 @@ describe("ZKTeco ADMS", () => {
     expect(record.source).toBe("MANAGER")
   })
 
-  it("qurilma bo'lsa telefondan belgilab bo'lmaydi", async () => {
-    asUser(w.worker)
-    expect((await getMyAttendanceToday()).deviceMode).toBe(true)
-    expect((await checkIn(form({}))).error).toMatch(/Face ID/)
+  it("ishchi faqat ism va Face ID raqami bilan qo'shiladi — login va parolsiz", async () => {
+    await post("31\t2026-10-22 07:55:00\t0\t15\n")
+
+    asUser(w.manager)
+    expect(await createEmployee(form({ name: "Anvar Karimov", deviceUserId: " 31 " }))).toEqual({})
+    const anvar = await prisma.user.findFirstOrThrow({ where: { organizationId: w.org.id, name: "Anvar Karimov" } })
+    expect(anvar).toMatchObject({ role: "WORKER", email: null, passwordHash: null, deviceUserId: "31" })
+    // Avval kelgan belgi ham davomatga o'tdi
+    const record = await prisma.attendance.findFirstOrThrow({ where: { userId: anvar.id } })
+    expect(record.checkIn).toEqual(new Date("2026-10-22T02:55:00Z"))
+
+    // Raqam band bo'lsa — rad etiladi; raqamsiz ham qo'shiladi
+    expect((await createEmployee(form({ name: "Boshqa", deviceUserId: "31" }))).error).toMatch(/boshqa xodimga/)
+    expect(await createEmployee(form({ name: "Raqamsiz" }))).toEqual({})
+    // Logini yo'q xodimga parol berilmaydi
+    expect((await resetEmployeePassword(form({ userId: anvar.id, password: "yangiparol1" }))).error).toMatch(/kirmaydi/)
   })
 })
 
 describe("bo'limlar", () => {
-  it("sukut bo'yicha ta'minotchi, rulon, eski tikuv va eski sahifalar o'chiq; admin o'zgartira oladi", async () => {
-    expect((await prisma.organization.findUniqueOrThrow({ where: { id: w.org.id } })).disabledModules).toBe("suppliers,rolls,bomProduction,legacy")
-    asUser(w.admin)
-    expect(await updateModules(form({ modules: ["sales", "finance", "rolls"] }))).toEqual({})
-    expect((await prisma.organization.findUniqueOrThrow({ where: { id: w.org.id } })).disabledModules).toBe("suppliers,bomProduction,legacy")
-    asUser(w.manager)
-    expect((await updateModules(form({ modules: ["suppliers"] }))).error).toMatch(/ruxsat/)
+  it("sotuv va moliya ochiq; ta'minotchi, rulon, eski tikuv va eski sahifalar yashirin", async () => {
+    const modules = await getEnabledModules()
+    expect([...modules].sort()).toEqual(["finance", "sales"])
   })
 })

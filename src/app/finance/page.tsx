@@ -15,7 +15,7 @@ import { PageHeader, pageClass } from "@/components/PageHeader"
 import { DateRangeFilter } from "@/components/DateRangeFilter"
 import { ExportButton } from "@/components/ExportButton"
 import { getLocale, getT } from "@/i18n/server"
-import { formatDateTime, formatMoney, formatNumber } from "@/lib/format"
+import { formatDateTime, formatMoney, formatNumber, personName } from "@/lib/format"
 import { WalletIcon, PlusIcon, HandCoinsIcon } from "lucide-react"
 
 export default async function FinancePage({
@@ -29,12 +29,12 @@ export default async function FinancePage({
   const F = t.finance
   const C = t.customers
   const money = (n: number) => formatMoney(n, locale)
-  const employees = staff.filter(s => s.isActive).map(s => ({ id: s.id, name: s.name ?? s.email }))
+  const employees = staff.filter(s => s.isActive).map(s => ({ id: s.id, name: personName(s) }))
 
   return (
     <div className={pageClass}>
       <PageHeader icon={<WalletIcon className="text-rose-600" />} title={F.title} subtitle={F.subtitle}>
-        <ExportButton kind="expenses" from={range.from} to={range.to} />
+        <ExportButton kind="finance" from={range.from} to={range.to} />
       </PageHeader>
 
       <DateRangeFilter basePath="/finance" from={range.from} to={range.to} allowAllTime={false} />
@@ -57,7 +57,7 @@ export default async function FinancePage({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
-        <Card className="lg:col-span-1 shadow-sm border-none bg-white">
+        <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2"><PlusIcon className="w-5 h-5 text-rose-600" />{F.newExpense}</CardTitle>
           </CardHeader>
@@ -66,7 +66,7 @@ export default async function FinancePage({
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-3 shadow-sm border-none bg-white overflow-hidden min-w-0">
+        <Card className="lg:col-span-3 overflow-hidden min-w-0 pb-0">
           <CardHeader className="border-b border-gray-50">
             <CardTitle className="text-lg text-gray-700">{F.list}</CardTitle>
           </CardHeader>
@@ -74,10 +74,10 @@ export default async function FinancePage({
             <Table>
               <TableHeader>
                 <TableRow className="bg-gray-50/50">
-                  <TableHead className="px-4 font-bold">{t.common.date}</TableHead>
-                  <TableHead className="px-4 font-bold">{F.category}</TableHead>
-                  <TableHead className="px-4 font-bold">{F.amount}</TableHead>
-                  <TableHead className="px-4 font-bold">{t.common.note}</TableHead>
+                  <TableHead className="px-4">{t.common.date}</TableHead>
+                  <TableHead className="px-4">{F.category}</TableHead>
+                  <TableHead className="px-4">{F.amount}</TableHead>
+                  <TableHead className="px-4">{t.common.note}</TableHead>
                   <TableHead className="px-4" />
                 </TableRow>
               </TableHeader>
@@ -108,7 +108,7 @@ export default async function FinancePage({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-        <Card className="shadow-sm border-none bg-white overflow-hidden">
+        <Card className="overflow-hidden pb-0">
           <CardHeader className="border-b border-gray-50">
             <CardTitle className="text-lg flex items-center gap-2"><HandCoinsIcon className="w-5 h-5 text-amber-600" />{F.debtorsTitle}</CardTitle>
           </CardHeader>
@@ -151,7 +151,7 @@ export default async function FinancePage({
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm border-none bg-white overflow-hidden">
+        <Card className="overflow-hidden pb-0">
           <CardHeader className="border-b border-gray-50">
             <CardTitle className="text-lg text-gray-700">{F.paymentsTitle}</CardTitle>
           </CardHeader>

@@ -20,7 +20,7 @@ model Organization {
   lateGraceMinutes Int    @default(10)
   // ISO hafta kunlari: 1 = dushanba ... 7 = yakshanba
   workDays         String @default("1,2,3,4,5,6")
-  // Sex joylashuvi — berilsa, xodim faqat shu radius ichida kelish/ketishni belgilay oladi
+  // Eskirgan: telefondan joylashuv bilan belgilash olib tashlangan (davomat — Face ID)
   geoLat           Float?
   geoLng           Float?
   geoRadiusM       Int?
@@ -56,9 +56,11 @@ model Organization {
 // 2. Foydalanuvchilar (Auth uchun)
 model User {
   id           String  @id @default(cuid())
-  email        String  @unique
+  // Login va parol faqat tizimga kiradiganlarda (admin, menejer). Sex ishchilari
+  // saytga kirmaydi — ularda ikkalasi ham bo'sh.
+  email        String? @unique
   name         String?
-  passwordHash String
+  passwordHash String?
   telegramId   String? @unique
   // Profil sahifasidan bot orqali ulash uchun bir martalik token (t.me/<bot>?start=<token>)
   telegramLinkToken          String?   @unique
@@ -492,7 +494,7 @@ model Attendance {
 
   checkIn  DateTime?
   checkOut DateTime?
-  // O'zi belgilaganda joylashuv va sexgacha masofa (metr) — nazorat uchun saqlanadi
+  // Eskirgan: telefondan belgilashdagi joylashuv (endi yozilmaydi)
   checkInLat        Float?
   checkInLng        Float?
   checkInDistanceM  Int?
@@ -705,6 +707,9 @@ model Batch {
   // Hozir omborda: tayyor (qadoqlangan) va brak, kg
   finishedKg   Float   @default(0)
   defectKg     Float   @default(0)
+  // Partiyadan chiqqan otxot (chiqindi ip), kg — tarix uchun, sotilsa ham kamaymaydi.
+  // Ombordagi otxot = jami otxot − sotilgan otxot.
+  wasteKg      Float   @default(0)
   // Jami ishlab chiqarilgan, kg
   producedKg   Float   @default(0)
 
@@ -741,11 +746,13 @@ model BatchMovement {
 enum BatchMovementType {
   PRODUCED
   DEFECT
+  WASTE
   SALE
   SALE_CANCEL
 }
 
-// 20. Ombordan sotuv: ip yoki tayyor partiya (yoki brak) — kg va summa, nasiya bilan
+// 20. Ombordan sotuv: ip, tayyor partiya, brak yoki otxot — kg va summa, nasiya bilan.
+// Otxot partiyaga bog'lanmaydi (aralash sotiladi).
 model StockSale {
   id   String        @id @default(cuid())
   kind StockSaleKind
@@ -777,4 +784,5 @@ enum StockSaleKind {
   YARN
   FINISHED
   DEFECT
+  WASTE
 }

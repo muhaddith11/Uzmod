@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { getSessionUser, isManagement } from "@/lib/session"
 import { roundQty } from "@/lib/domain/costing"
 import { socksFromKg } from "@/lib/domain/machines"
-import { settleDueLoads } from "@/lib/workshop"
+import { settleDueLoads, wasteInStock } from "@/lib/workshop"
 import { addDays, lastTashkentDays, startOfTashkentDayFor } from "@/lib/tz"
 import { formatShortDay } from "@/lib/format"
 import { getLocale } from "@/i18n/server"
@@ -20,7 +20,7 @@ export async function getDashboardData() {
   const management = isManagement(me.role)
   await settleDueLoads(orgId, now)
 
-  const [yarn, batches, machines, knitting, produced, yarnToday, salesToday] = await Promise.all([
+  const [yarn, batches, machines, knitting, produced, yarnToday, salesToday, wasteKg] = await Promise.all([
     prisma.stockLevel.aggregate({
       where: { product: { organizationId: orgId, isRawMaterial: true, yarnType: { not: null } } },
       _sum: { quantity: true },
@@ -43,6 +43,7 @@ export async function getDashboardData() {
     management
       ? prisma.stockSale.aggregate({ where: { organizationId: orgId, createdAt: { gte: todayStart } }, _sum: { totalAmount: true } })
       : Promise.resolve(null),
+    wasteInStock(prisma, orgId),
   ])
 
   const chartData = days.map(start => {
@@ -58,6 +59,7 @@ export async function getDashboardData() {
     yarnKg: roundQty(yarn._sum.quantity ?? 0),
     finishedKg: roundQty(batches._sum.finishedKg ?? 0),
     defectKg: roundQty(batches._sum.defectKg ?? 0),
+    wasteKg,
     machines,
     runningMachines: new Set(knitting.map(l => l.machineId)).size,
     knittingKg: roundQty(knitting.reduce((acc, l) => acc + l.kg, 0)),

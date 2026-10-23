@@ -13,7 +13,12 @@ import { formatDateTime, formatMoney, formatNumber } from "@/lib/format"
 import { resolveRange } from "@/lib/attendance"
 import { ShoppingBagIcon, PlusIcon, InfoIcon } from "lucide-react"
 
-const KIND_TONE = { FINISHED: "bg-indigo-50 text-indigo-700", DEFECT: "bg-rose-50 text-rose-700", YARN: "bg-teal-50 text-teal-700" } as const
+const KIND_TONE = {
+  FINISHED: "bg-indigo-50 text-indigo-700",
+  DEFECT: "bg-rose-50 text-rose-700",
+  YARN: "bg-teal-50 text-teal-700",
+  WASTE: "bg-stone-100 text-stone-700",
+} as const
 
 export default async function SalesPage({
   searchParams,
@@ -34,7 +39,7 @@ export default async function SalesPage({
       </PageHeader>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
-        <Card className="lg:col-span-2 shadow-sm border-none bg-white">
+        <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2"><PlusIcon className="w-5 h-5 text-green-600" />{S.newSale}</CardTitle>
           </CardHeader>
@@ -54,7 +59,7 @@ export default async function SalesPage({
             <Mini label={S.onCredit} value={formatMoney(sales.totals.debt, locale)} warn={sales.totals.debt > 0} />
           </div>
 
-          <Card className="shadow-sm border-none bg-white overflow-hidden">
+          <Card className="overflow-hidden pb-0">
             <CardHeader className="border-b border-gray-50">
               <CardTitle className="text-lg text-gray-700">{S.list}</CardTitle>
             </CardHeader>
@@ -62,12 +67,12 @@ export default async function SalesPage({
               <Table>
                 <TableHeader>
                   <TableRow className="bg-gray-50/50">
-                    <TableHead className="px-4 font-bold">{t.common.date}</TableHead>
-                    <TableHead className="px-4 font-bold">{S.colItem}</TableHead>
-                    <TableHead className="px-4 font-bold text-right">{S.colKg}</TableHead>
-                    <TableHead className="px-4 font-bold text-right">{S.colTotal}</TableHead>
-                    <TableHead className="px-4 font-bold text-right">{S.colDebt}</TableHead>
-                    <TableHead className="px-4 font-bold">{S.colCustomer}</TableHead>
+                    <TableHead className="px-4">{t.common.date}</TableHead>
+                    <TableHead className="px-4">{S.colItem}</TableHead>
+                    <TableHead className="px-4 text-right">{S.colKg}</TableHead>
+                    <TableHead className="px-4 text-right">{S.colTotal}</TableHead>
+                    <TableHead className="px-4 text-right">{S.colDebt}</TableHead>
+                    <TableHead className="px-4">{S.colCustomer}</TableHead>
                     {me.role === "ADMIN" && <TableHead className="px-4" />}
                   </TableRow>
                 </TableHeader>

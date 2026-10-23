@@ -1,4 +1,5 @@
 import { sendTelegramMessage, escapeHtml } from "@/lib/telegram";
+import { personName } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 
 function miniAppKeyboard() {
@@ -53,7 +54,7 @@ async function linkByToken(message: TelegramMessage, token: string) {
 
   await sendTelegramMessage(
     chatId,
-    `✅ Telegram hisobingiz <b>${escapeHtml(user.name ?? user.email)}</b> profiliga ulandi (<b>${escapeHtml(user.organization.name)}</b>). \n\nIshlab chiqarishni boshqarish uchun quyidagi tugmani bosing:`,
+    `✅ Telegram hisobingiz <b>${escapeHtml(personName(user))}</b> profiliga ulandi (<b>${escapeHtml(user.organization.name)}</b>). \n\nIshlab chiqarishni boshqarish uchun quyidagi tugmani bosing:`,
     miniAppKeyboard()
   );
 }

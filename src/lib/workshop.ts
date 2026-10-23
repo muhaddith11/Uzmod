@@ -19,6 +19,18 @@ export async function defaultWarehouseId(tx: Tx, organizationId: string): Promis
   return created.id
 }
 
+/**
+ * Ombordagi otxot (kg): partiyalardan chiqqan jami otxot minus sotilgani. Otxot aralash
+ * sotiladi, shuning uchun partiyaga bog'lanmaydi; sotuv bekor qilinsa o'zi qaytadi.
+ */
+export async function wasteInStock(db: Tx | typeof prisma, organizationId: string): Promise<number> {
+  const [produced, sold] = await Promise.all([
+    db.batch.aggregate({ where: { organizationId }, _sum: { wasteKg: true } }),
+    db.stockSale.aggregate({ where: { organizationId, kind: 'WASTE' }, _sum: { kg: true } }),
+  ])
+  return roundQty((produced._sum.wasteKg ?? 0) - (sold._sum.kg ?? 0))
+}
+
 export function readyAtFor(loadedAt: Date, hours: number): Date {
   return new Date(loadedAt.getTime() + hours * HOUR_MS)
 }

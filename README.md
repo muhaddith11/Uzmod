@@ -7,7 +7,7 @@ tashkilot bitta o'rnatmada ishlaydi (multi-tenant). Interfeys o'zbek va rus till
 qabul qilish va FIFO sarflash, resept (BOM) bo'yicha ishlab chiqarish, ko'p qatorli
 sotuv (naqd/karta/nasiya) va uni bekor qilish, mijozlar qarzi, ta'minotchilar va
 ularga qarz, omborlar orasida ko'chirish, xarajatlar, ishbay haq va bonus/jarima,
-moliyaviy hisobot, Excel eksport, Telegram Mini App.
+moliyaviy hisobot, Word (.docx) hisobotlar, Telegram Mini App.
 
 **Rollar:** `ADMIN` (hammasi), `MANAGER` (sotuv, mijoz, ta'minotchi, xodim — moliyasiz),
 `WORKER` (tikuv va rulon qabul qilish; narxlarni ko'rmaydi).
@@ -15,7 +15,7 @@ moliyaviy hisobot, Excel eksport, Telegram Mini App.
 ## Texnologiyalar
 
 Next.js 16 (App Router, server actions) · React 19 · Prisma 7 + PostgreSQL (Neon) ·
-NextAuth v5 (JWT) · Tailwind 4 · zod · exceljs · Vitest.
+NextAuth v5 (JWT) · Tailwind 4 · zod · docx · Vitest.
 
 ## Lokal ishga tushirish
 

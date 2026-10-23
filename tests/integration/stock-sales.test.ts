@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { prisma } from "@/lib/prisma"
 import { receiveYarn } from "@/lib/actions/yarn"
 import { createMachines, loadMachines } from "@/lib/actions/machines"
-import { getStockOverview, markDefect } from "@/lib/actions/batches"
+import { getStockOverview, markDefect, recordWaste } from "@/lib/actions/batches"
 import { cancelStockSale, createStockSale, getSaleOptions, getStockSales } from "@/lib/actions/stock-sales"
 import { createExpense } from "@/lib/actions/expenses"
 import { repayDebt } from "@/lib/actions/customers"
@@ -136,5 +136,33 @@ describe("moliya", () => {
 
     asUser(w.manager)
     await expect(getFinanceSummary({ from: "2026-10-01", to: "2026-10-31" })).rejects.toThrow()
+  })
+})
+
+describe("otxot", () => {
+  it("partiyadan otxot yoziladi, omborda ko'rinadi va sotiladi", async () => {
+    asUser(w.manager)
+    expect(await recordWaste(form({ batchId, kg: 3 }))).toEqual({})
+    expect((await recordWaste(form({ batchId, kg: 1000 }))).error).toMatch(/yo'q/)
+    let overview = await getStockOverview()
+    // ip = tayyor + brak + otxot: 100 = 92 + 5 + 3
+    expect(overview.batches[0]).toMatchObject({ finishedKg: 92, defectKg: 5, wasteKg: 3, producedKg: 100 })
+    expect(overview.wasteKg).toBe(3)
+
+    const { items } = await getSaleOptions()
+    expect(items.find(i => i.kind === "WASTE")).toMatchObject({ value: "WASTE:all", availableKg: 3, label: "Otxot" })
+    expect((await createStockSale(form({ item: "WASTE:all", kg: 4, total: 10_000 }))).error).toMatch(/yetarli emas/)
+    expect(await createStockSale(form({ item: "WASTE:all", kg: 2, total: 8_000 }))).toEqual({})
+
+    overview = await getStockOverview()
+    expect(overview.wasteKg).toBe(1)
+    // Partiyadan chiqqan otxot — tarix, sotilsa ham o'zgarmaydi
+    expect(overview.batches[0].wasteKg).toBe(3)
+    const sale = (await getStockSales()).rows[0]
+    expect(sale).toMatchObject({ kind: "WASTE", label: "Otxot", kg: 2 })
+
+    asUser(w.admin)
+    expect(await cancelStockSale(sale.id)).toEqual({})
+    expect((await getStockOverview()).wasteKg).toBe(3)
   })
 })

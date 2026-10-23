@@ -63,7 +63,7 @@ export default async function ReportsPage({
         {R.howCalculated}
       </p>
 
-      <Card className="rounded-3xl border-none shadow-sm bg-white">
+      <Card>
         <CardHeader>
           <CardTitle className="text-xl font-black">{R.expenseChart}</CardTitle>
           <CardDescription>{R.period}</CardDescription>

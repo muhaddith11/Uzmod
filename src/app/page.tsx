@@ -1,8 +1,7 @@
 import { getDashboardData } from "@/lib/actions/dashboard"
 import { getSessionUser, isManagement } from "@/lib/session"
 import { getEnabledModules } from "@/lib/modules"
-import { getMyAttendanceToday, getMyMonthSummary, getTodayBoard } from "@/lib/actions/attendance"
-import { CheckInCard } from "@/components/attendance/CheckInCard"
+import { getMyMonthSummary, getTodayBoard } from "@/lib/actions/attendance"
 import { formatDuration } from "@/lib/domain/attendance"
 import Link from "next/link"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
@@ -15,10 +14,9 @@ export default async function HomePage() {
   const me = await getSessionUser()
   // Davomat ishchi va menejerlarga yuritiladi (admin — egasi)
   const tracked = me.role !== 'ADMIN'
-  const [modules, data, t, locale, myToday, myMonth, board] = await Promise.all([
+  const [modules, data, t, locale, myMonth, board] = await Promise.all([
     getEnabledModules(),
     getDashboardData(), getT(), getLocale(),
-    tracked ? getMyAttendanceToday() : Promise.resolve(null),
     tracked ? getMyMonthSummary() : Promise.resolve(null),
     isManagement(me.role) ? getTodayBoard() : Promise.resolve(null),
   ])
@@ -33,32 +31,30 @@ export default async function HomePage() {
           <h1 className="text-3xl md:text-4xl font-black text-gray-900 tracking-tight">{D.greeting(firstName)}</h1>
           <p className="text-gray-500 font-medium">{D.subtitle}</p>
         </div>
-        <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-2xl shadow-sm border border-gray-100 text-sm text-gray-400 w-fit">
+        <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-2xl ring-1 ring-gray-200/80 text-sm text-gray-500 w-fit">
           <CalendarIcon className="w-4 h-4" />
           {D.last7days}
         </div>
       </div>
 
-      {myToday && myMonth && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <CheckInCard initial={myToday} />
-          <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm p-5 space-y-3">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{A.myMonth}</p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <MiniStat label={A.colHours} value={formatDuration(myMonth.workedMinutes)} />
-              <MiniStat label={A.colPresent} value={`${myMonth.presentDays} / ${myMonth.workingDays}`} />
-              <MiniStat label={A.colLateCount} value={String(myMonth.lateCount)} warn={myMonth.lateCount > 0} />
-              <MiniStat label={A.colAbsent} value={String(myMonth.absentDays)} warn={myMonth.absentDays > 0} />
-            </div>
+      {myMonth && (
+        <div className="bg-white rounded-2xl ring-1 ring-gray-200/80 p-5 space-y-3">
+          <p className="text-sm font-bold text-gray-700">{A.myMonth}</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <MiniStat label={A.colHours} value={formatDuration(myMonth.workedMinutes)} />
+            <MiniStat label={A.colPresent} value={`${myMonth.presentDays} / ${myMonth.workingDays}`} />
+            <MiniStat label={A.colLateCount} value={String(myMonth.lateCount)} warn={myMonth.lateCount > 0} />
+            <MiniStat label={A.colAbsent} value={String(myMonth.absentDays)} warn={myMonth.absentDays > 0} />
           </div>
         </div>
       )}
 
       {isManagement(me.role) && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StockTile href="/stock" label={D.stockYarn} kg={formatNumber(data.yarnKg, locale)} tone="teal" />
           <StockTile href="/stock" label={D.stockFinished} kg={formatNumber(data.finishedKg, locale)} tone="indigo" />
           <StockTile href="/stock" label={D.stockDefect} kg={formatNumber(data.defectKg, locale)} tone="rose" />
+          <StockTile href="/stock" label={D.stockWaste} kg={formatNumber(data.wasteKg, locale)} tone="stone" />
         </div>
       )}
 
@@ -87,7 +83,7 @@ export default async function HomePage() {
         )}
       </div>
 
-      <Card className="rounded-3xl border-none shadow-sm bg-white p-4 md:p-6">
+      <Card className="p-4 md:p-6">
         <CardHeader className="pb-4">
           <CardTitle className="text-2xl font-black flex items-center gap-2">
             <BarChart3Icon className="w-6 h-6 text-indigo-600" />
@@ -104,16 +100,17 @@ export default async function HomePage() {
 }
 
 const STOCK_TONES = {
-  teal: "bg-teal-50 border-teal-100 text-teal-900 hover:bg-teal-100/60",
-  indigo: "bg-indigo-50 border-indigo-100 text-indigo-900 hover:bg-indigo-100/60",
-  rose: "bg-rose-50 border-rose-100 text-rose-900 hover:bg-rose-100/60",
+  teal: "bg-teal-50 ring-teal-100 text-teal-900 hover:bg-teal-100/60",
+  indigo: "bg-indigo-50 ring-indigo-100 text-indigo-900 hover:bg-indigo-100/60",
+  rose: "bg-rose-50 ring-rose-100 text-rose-900 hover:bg-rose-100/60",
+  stone: "bg-stone-100 ring-stone-200 text-stone-900 hover:bg-stone-200/60",
 } as const
 
 function StockTile({ href, label, kg, tone }: { href: string; label: string; kg: string; tone: keyof typeof STOCK_TONES }) {
   return (
-    <Link href={href} className={`rounded-2xl border p-5 transition-colors ${STOCK_TONES[tone]}`}>
-      <p className="text-xs font-bold uppercase tracking-widest opacity-70">{label}</p>
-      <p className="text-3xl font-black mt-1">{kg} <span className="text-lg font-bold opacity-60">kg</span></p>
+    <Link href={href} className={`rounded-2xl ring-1 p-5 transition-colors ${STOCK_TONES[tone]}`}>
+      <p className="text-sm font-bold opacity-80">{label}</p>
+      <p className="text-2xl md:text-3xl font-black mt-1 tabular-nums">{kg} <span className="text-lg font-bold opacity-60">kg</span></p>
     </Link>
   )
 }
@@ -127,11 +124,11 @@ const TONES = {
 
 function Stat({ icon, label, value, sub, tone }: { icon: React.ReactNode; label: string; value: string; sub?: string; tone: keyof typeof TONES }) {
   return (
-    <div className="bg-white p-5 rounded-2xl shadow-sm flex items-center justify-between gap-3">
+    <div className="bg-white p-5 rounded-2xl ring-1 ring-gray-200/80 flex items-center justify-between gap-3">
       <div className="space-y-1 min-w-0">
-        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{label}</p>
+        <p className="text-sm font-semibold text-gray-500">{label}</p>
         <p className="text-xl md:text-2xl font-black text-gray-900 truncate">{value}</p>
-        {sub && <p className="text-xs font-semibold text-gray-400 truncate">{sub}</p>}
+        {sub && <p className="text-xs font-semibold text-gray-500 truncate">{sub}</p>}
       </div>
       <div className={`p-3 rounded-xl shrink-0 ${TONES[tone]}`}>{icon}</div>
     </div>
@@ -141,7 +138,7 @@ function Stat({ icon, label, value, sub, tone }: { icon: React.ReactNode; label:
 function MiniStat({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
   return (
     <div className="rounded-xl bg-gray-50 p-3">
-      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
+      <p className="text-xs font-semibold text-gray-500">{label}</p>
       <p className={`text-xl font-black ${warn ? "text-rose-600" : "text-gray-900"}`}>{value}</p>
     </div>
   )

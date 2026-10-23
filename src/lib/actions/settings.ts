@@ -6,14 +6,13 @@ import { prisma } from "@/lib/prisma"
 import { requireRole } from "@/lib/session"
 import { action, ActionError } from "@/lib/action"
 import { fields, parseForm } from "@/lib/validation"
-import { MODULES, type ModuleKey } from "@/lib/modules"
 import { getT } from "@/i18n/server"
 
 export async function getSettings() {
   const { organizationId } = await requireRole('ADMIN')
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
   const [org, devices, unknown] = await Promise.all([
-    prisma.organization.findUniqueOrThrow({ where: { id: organizationId }, select: { disabledModules: true, autoTransferHours: true } }),
+    prisma.organization.findUniqueOrThrow({ where: { id: organizationId }, select: { autoTransferHours: true } }),
     prisma.attendanceDevice.findMany({
       where: { organizationId },
       orderBy: { createdAt: 'asc' },
@@ -26,12 +25,10 @@ export async function getSettings() {
       _count: { _all: true },
     }),
   ])
-  const disabled = new Set(org.disabledModules.split(",").map(s => s.trim()))
   // Qurilma oxirgi 5 daqiqada aloqaga chiqqan bo'lsa — onlayn
   const onlineSince = Date.now() - 5 * 60 * 1000
   return {
     autoTransferHours: org.autoTransferHours,
-    modules: MODULES.map(key => ({ key, enabled: !disabled.has(key) })),
     devices: devices.map(d => ({
       id: d.id,
       name: d.name,
@@ -46,14 +43,6 @@ export async function getSettings() {
       .sort((a, b) => a.pin.localeCompare(b.pin)),
   }
 }
-
-export const updateModules = action(async function updateModules(formData: FormData) {
-  const { organizationId } = await requireRole('ADMIN')
-  const enabled = new Set(formData.getAll("modules").filter((v): v is string => typeof v === "string"))
-  const disabled = MODULES.filter((m: ModuleKey) => !enabled.has(m))
-  await prisma.organization.update({ where: { id: organizationId }, data: { disabledModules: disabled.join(",") } })
-  revalidatePath("/", "layout")
-})
 
 /** Stanokka ip qo'yilgandan necha soatdan keyin paypoq omborga o'tadi (yangi yuklamalar uchun) */
 export const updateAutoTransfer = action(async function updateAutoTransfer(formData: FormData) {

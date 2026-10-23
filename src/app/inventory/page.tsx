@@ -44,12 +44,12 @@ export default async function InventoryPage() {
   return (
     <div className={pageClass}>
       <PageHeader icon={<BoxesIcon className="text-indigo-600" />} title={L.title} subtitle={L.subtitle}>
-        {manager && <ExportButton kind="stock" />}
+        {manager && <ExportButton kind="products" />}
       </PageHeader>
 
       <div className={`grid grid-cols-1 gap-8 items-start ${manager ? "xl:grid-cols-4" : ""}`}>
         {manager && (
-          <Card className="xl:col-span-1 shadow-sm border-none bg-white">
+          <Card className="xl:col-span-1">
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <PlusIcon className="w-5 h-5 text-indigo-600" />
@@ -133,17 +133,17 @@ function ProductTable({ products, ctx }: { products: ProductRow[]; ctx: Ctx }) {
   const columns = manager ? 6 : 3
 
   return (
-    <Card className="shadow-sm border-none bg-white overflow-hidden">
+    <Card className="overflow-hidden pb-0">
       <CardContent className="p-0">
         <Table>
           <TableHeader>
             <TableRow className="bg-gray-50 hover:bg-gray-50 border-none">
-              <TableHead className="py-4 px-4 md:px-6 font-bold text-gray-600">{L.colItem}</TableHead>
-              <TableHead className="py-4 px-4 md:px-6 font-bold text-gray-600">{L.colType}</TableHead>
-              <TableHead className="py-4 px-4 md:px-6 font-bold text-gray-600">{L.colStock}</TableHead>
-              {manager && <TableHead className="py-4 px-4 md:px-6 font-bold text-gray-600">{L.colCost}</TableHead>}
-              {manager && <TableHead className="py-4 px-4 md:px-6 font-bold text-gray-600">{L.colPrice}</TableHead>}
-              {manager && <TableHead className="py-4 px-4 md:px-6 text-right font-bold text-gray-600">{t.common.actions}</TableHead>}
+              <TableHead className="py-4 px-4 md:px-6 text-gray-600">{L.colItem}</TableHead>
+              <TableHead className="py-4 px-4 md:px-6 text-gray-600">{L.colType}</TableHead>
+              <TableHead className="py-4 px-4 md:px-6 text-gray-600">{L.colStock}</TableHead>
+              {manager && <TableHead className="py-4 px-4 md:px-6 text-gray-600">{L.colCost}</TableHead>}
+              {manager && <TableHead className="py-4 px-4 md:px-6 text-gray-600">{L.colPrice}</TableHead>}
+              {manager && <TableHead className="py-4 px-4 md:px-6 text-right text-gray-600">{t.common.actions}</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>

@@ -19,7 +19,7 @@ export async function getStaff() {
   const { organizationId: orgId } = await requireRole('ADMIN', 'MANAGER')
   return await prisma.user.findMany({
     where: { organizationId: orgId },
-    select: { id: true, name: true, email: true, role: true, telegramId: true, isActive: true, deviceUserId: true },
+    select: { id: true, name: true, email: true, role: true, isActive: true, deviceUserId: true },
     orderBy: [{ isActive: 'desc' }, { role: 'asc' }, { name: 'asc' }]
   })
 }
@@ -94,8 +94,8 @@ export async function getWorkerEarnings(range: DateRangeParams) {
 }
 
 /**
- * Xodim qo'shadi. Xodim email+parol bilan kiradi, so'ng Profil sahifasidan
- * Telegram'ini ulaydi. Menejer faqat ishchi qo'sha oladi — menejer tayinlash adminda.
+ * Sex ishchisini qo'shadi: faqat ism va (ixtiyoriy) Face ID qurilmadagi raqami.
+ * Ishchilar saytga kirmaydi — login va paroli yo'q, davomat qurilmadan keladi.
  */
 export const createEmployee = action(async function createEmployee(formData: FormData) {
   const me = await requireRole('ADMIN', 'MANAGER')
@@ -103,37 +103,26 @@ export const createEmployee = action(async function createEmployee(formData: For
   const f = fields(t)
   const input = parseForm(z.object({
     name: f.text(t.workers.fullName, 100),
-    email: f.email(),
-    password: f.newPassword(),
-    role: f.oneOf(t.workers.role, ['WORKER', 'MANAGER'] as const),
+    deviceUserId: f.optionalText(t.workers.deviceId, 20),
   }), formData)
+  const pin = input.deviceUserId?.replace(/\s/g, "") || null
 
-  if (input.role === 'MANAGER' && me.role !== 'ADMIN') {
-    throw new ActionError(t.workers.onlyAdminAddsManager)
-  }
-
-  const exists = await prisma.user.findFirst({
-    where: { email: { equals: input.email, mode: 'insensitive' } },
-    select: { id: true }
-  })
-  if (exists) throw new ActionError(t.errors.emailTaken)
-
+  let created: { id: string }
   try {
-    await prisma.user.create({
-      data: {
-        name: input.name,
-        email: input.email,
-        passwordHash: await bcrypt.hash(input.password, 10),
-        role: input.role,
-        organizationId: me.organizationId
-      }
+    created = await prisma.user.create({
+      data: { name: input.name, role: 'WORKER', deviceUserId: pin, organizationId: me.organizationId },
+      select: { id: true },
     })
   } catch (error) {
-    if ((error as { code?: string })?.code === 'P2002') throw new ActionError(t.errors.emailTaken)
+    if ((error as { code?: string })?.code === 'P2002') throw new ActionError(t.workers.deviceIdTaken)
     throw error
   }
+  // Qurilmada bu raqam bilan avval kelgan belgilar ham davomatga o'tadi
+  if (pin) await relinkPunches(me.organizationId, pin, created.id)
 
   revalidatePath("/workers")
+  revalidatePath("/attendance")
+  revalidatePath("/machines")
   revalidatePath("/production")
 })
 
@@ -147,7 +136,7 @@ async function findManageableUser(me: SessionUser, userId: string) {
 
   const target = await prisma.user.findFirst({
     where: { id: userId, organizationId: me.organizationId },
-    select: { id: true, role: true }
+    select: { id: true, role: true, email: true }
   })
   if (!target) throw new ActionError(t.errors.workerNotFound)
   if (me.role !== 'ADMIN' && target.role !== 'WORKER') {
@@ -181,6 +170,8 @@ export const resetEmployeePassword = action(async function resetEmployeePassword
     password: f.newPassword(),
   }), formData)
   const target = await findManageableUser(me, input.userId)
+  // Sex ishchisining logini yo'q — parol berilsa ham kira olmaydi
+  if (!target.email) throw new ActionError(t.workers.noLogin)
 
   await prisma.user.update({
     where: { id: target.id },

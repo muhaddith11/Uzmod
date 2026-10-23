@@ -1,7 +1,7 @@
-import { FileSpreadsheetIcon } from "lucide-react"
+import { FileTextIcon } from "lucide-react"
 import { getT } from "@/i18n/server"
 
-/** Excel yuklab olish havolasi (route handler fayl qaytaradi) */
+/** Word (.docx) hisobotni yuklab olish havolasi — route handler faylni qaytaradi */
 export async function ExportButton({ kind, from, to, label }: { kind: string; from?: string; to?: string; label?: string }) {
   const t = await getT()
   const params = new URLSearchParams()
@@ -12,10 +12,11 @@ export async function ExportButton({ kind, from, to, label }: { kind: string; fr
   return (
     <a
       href={`/api/export/${kind}${query ? `?${query}` : ""}`}
-      className="inline-flex items-center gap-2 h-10 px-4 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 text-sm font-bold hover:bg-emerald-100 transition-colors"
+      download
+      className="inline-flex items-center gap-2 h-10 px-4 rounded-xl border border-gray-200 bg-white text-gray-800 text-sm font-semibold shadow-[0_1px_2px_0_rgb(16_24_40/0.05)] hover:bg-gray-50 hover:border-gray-300 transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-indigo-500/30"
     >
-      <FileSpreadsheetIcon className="w-4 h-4" />
-      {label ?? t.common.exportExcel}
+      <FileTextIcon className="w-4 h-4 text-blue-600" />
+      {label ?? t.common.exportWord}
     </a>
   )
 }

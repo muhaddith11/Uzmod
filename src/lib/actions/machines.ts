@@ -11,7 +11,7 @@ import { addStock, takeStock } from "@/lib/inventory"
 import { roundQty } from "@/lib/domain/costing"
 import { parseMachineNumbers, socksFromKg } from "@/lib/domain/machines"
 import { defaultWarehouseId, readyAtFor, settleDueLoads } from "@/lib/workshop"
-import { formatNumber } from "@/lib/format"
+import { formatNumber, personName } from "@/lib/format"
 import { parseDateRange, startOfTashkentDayFor, type DateRangeParams } from "@/lib/tz"
 import { getLocale, getT } from "@/i18n/server"
 
@@ -103,7 +103,7 @@ export async function getLoadFormOptions() {
         stockKg: roundQty(y.stockLevels.reduce((acc, sl) => acc + sl.quantity, 0)),
       }))
       .filter(y => y.stockKg > 0),
-    workers: workers.map(w => ({ id: w.id, name: w.name ?? w.email })),
+    workers: workers.map(w => ({ id: w.id, name: personName(w) })),
     canChooseWorker: isManagement(me.role),
   }
 }

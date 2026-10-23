@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
-  atTime, distanceMeters, evaluateDay, formatDuration, isoWeekday, parseTime, parseWorkDays,
+  atTime, evaluateDay, formatDuration, isoWeekday, parseTime, parseWorkDays,
   summarizeAttendance, workingDaysInRange, type DayRecord, type Schedule,
 } from "@/lib/domain/attendance"
 
@@ -29,13 +29,6 @@ describe("vaqt va kunlar", () => {
     expect(workingDaysInRange("2026-10-19", "2026-10-25", schedule.workDays)).toEqual([
       "2026-10-19", "2026-10-20", "2026-10-21", "2026-10-22", "2026-10-23", "2026-10-24",
     ])
-  })
-
-  it("masofa (haversine)", () => {
-    // Toshkent markazidan ~1.1 km shimolga
-    expect(distanceMeters(41.3111, 69.2797, 41.3211, 69.2797)).toBeGreaterThan(1050)
-    expect(distanceMeters(41.3111, 69.2797, 41.3211, 69.2797)).toBeLessThan(1150)
-    expect(distanceMeters(41.3111, 69.2797, 41.3111, 69.2797)).toBe(0)
   })
 
   it("davomiylik formati", () => {

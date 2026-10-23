@@ -64,18 +64,18 @@ export default async function HistoryPage({
       <DateRangeFilter basePath="/history" from={from} to={to} />
       {movements.length === LIMIT && <p className="text-xs text-gray-400 -mt-4">{H.showingLast(LIMIT)}</p>}
 
-      <Card className="shadow-sm border-none bg-white overflow-hidden">
+      <Card className="overflow-hidden pb-0">
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow className="bg-gray-50 border-none">
-                <TableHead className="py-4 px-4 font-bold">{t.common.date}</TableHead>
-                <TableHead className="py-4 px-4 font-bold">{H.colType}</TableHead>
-                <TableHead className="py-4 px-4 font-bold">{H.colProduct}</TableHead>
-                <TableHead className="py-4 px-4 font-bold">{H.colQty}</TableHead>
-                <TableHead className="py-4 px-4 font-bold">{H.colRoute}</TableHead>
-                {showNotes && <TableHead className="py-4 px-4 font-bold">{H.colNote}</TableHead>}
-                <TableHead className="py-4 px-4 font-bold">{H.colWho}</TableHead>
+                <TableHead className="py-4 px-4">{t.common.date}</TableHead>
+                <TableHead className="py-4 px-4">{H.colType}</TableHead>
+                <TableHead className="py-4 px-4">{H.colProduct}</TableHead>
+                <TableHead className="py-4 px-4">{H.colQty}</TableHead>
+                <TableHead className="py-4 px-4">{H.colRoute}</TableHead>
+                {showNotes && <TableHead className="py-4 px-4">{H.colNote}</TableHead>}
+                <TableHead className="py-4 px-4">{H.colWho}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

@@ -58,7 +58,7 @@ export default async function ProductDetailsPage({ params }: { params: Promise<{
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
         {manager && (
-          <Card className="border-none shadow-sm bg-white">
+          <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Settings2Icon className="w-5 h-5 text-indigo-600" /> {L.detailsTitle}
@@ -100,7 +100,7 @@ export default async function ProductDetailsPage({ params }: { params: Promise<{
         )}
 
         {!product.isRawMaterial && (
-          <Card className={`border-none shadow-sm bg-white ${manager ? "lg:col-span-2" : "lg:col-span-3"}`}>
+          <Card className={`${manager ? "lg:col-span-2" : "lg:col-span-3"}`}>
             <CardHeader>
               <CardTitle className="text-lg">{L.bomTitle}</CardTitle>
               <CardDescription>{L.bomSubtitle}</CardDescription>
@@ -127,9 +127,9 @@ export default async function ProductDetailsPage({ params }: { params: Promise<{
               <Table>
                 <TableHeader>
                   <TableRow className="bg-gray-50">
-                    <TableHead className="font-bold">{L.bomMaterial}</TableHead>
-                    <TableHead className="font-bold">{L.bomQty}</TableHead>
-                    {manager && <TableHead className="font-bold">{L.colCost}</TableHead>}
+                    <TableHead>{L.bomMaterial}</TableHead>
+                    <TableHead>{L.bomQty}</TableHead>
+                    {manager && <TableHead>{L.colCost}</TableHead>}
                     {manager && <TableHead />}
                   </TableRow>
                 </TableHeader>

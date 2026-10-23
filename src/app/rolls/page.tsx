@@ -43,7 +43,7 @@ export default async function RollsPage() {
       <PageHeader icon={<DiscIcon className="text-amber-600" />} title={R.title} subtitle={R.subtitle} />
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
-        <Card className="lg:col-span-1 shadow-sm border-none bg-white">
+        <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <PlusIcon className="w-5 h-5 text-amber-600" />
@@ -95,7 +95,7 @@ export default async function RollsPage() {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-3 shadow-sm border-none bg-white overflow-hidden min-w-0">
+        <Card className="lg:col-span-3 overflow-hidden min-w-0 pb-0">
           <CardHeader className="border-b border-gray-50 flex flex-row flex-wrap items-center justify-between gap-3">
             <CardTitle className="text-lg font-bold text-gray-700">{R.openRolls}</CardTitle>
             <div className="text-right">
@@ -112,11 +112,11 @@ export default async function RollsPage() {
                 <TableHeader>
                   <TableRow className="bg-gray-50/50 border-none hover:bg-gray-50/50">
                     {manager && <TableHead className="py-4 pl-4 w-10" />}
-                    <TableHead className="py-4 px-4 font-bold text-gray-600">{R.material}</TableHead>
-                    <TableHead className="py-4 px-4 font-bold text-gray-600">{t.common.warehouse}</TableHead>
-                    <TableHead className="py-4 px-4 font-bold text-gray-600">{R.colStatus}</TableHead>
-                    <TableHead className="py-4 px-4 font-bold text-gray-600 min-w-48">{R.colLeft}</TableHead>
-                    {manager && <TableHead className="py-4 px-4 font-bold text-gray-600 text-right">{t.common.actions}</TableHead>}
+                    <TableHead className="py-4 px-4 text-gray-600">{R.material}</TableHead>
+                    <TableHead className="py-4 px-4 text-gray-600">{t.common.warehouse}</TableHead>
+                    <TableHead className="py-4 px-4 text-gray-600">{R.colStatus}</TableHead>
+                    <TableHead className="py-4 px-4 text-gray-600 min-w-48">{R.colLeft}</TableHead>
+                    {manager && <TableHead className="py-4 px-4 text-gray-600 text-right">{t.common.actions}</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>

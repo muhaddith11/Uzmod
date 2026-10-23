@@ -3,7 +3,6 @@ import { ns } from "../locales"
 export const common = ns({
   uz: {
     appName: "Uzmod",
-    appSuffix: "Ombor",
     save: "Saqlash",
     add: "Qo'shish",
     delete: "O'chirish",
@@ -43,7 +42,7 @@ export const common = ns({
     currency: "so'm",
     yes: "Ha",
     no: "Yo'q",
-    exportExcel: "Excel'ga yuklab olish",
+    exportWord: "Word'ga yuklab olish",
     from: "Dan",
     to: "Gacha",
     apply: "Qo'llash",
@@ -62,7 +61,6 @@ export const common = ns({
   },
   ru: {
     appName: "Uzmod",
-    appSuffix: "Склад",
     save: "Сохранить",
     add: "Добавить",
     delete: "Удалить",
@@ -102,7 +100,7 @@ export const common = ns({
     currency: "сум",
     yes: "Да",
     no: "Нет",
-    exportExcel: "Скачать в Excel",
+    exportWord: "Скачать в Word",
     from: "С",
     to: "По",
     apply: "Применить",

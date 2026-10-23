@@ -13,7 +13,7 @@ import { socksFromKg } from "@/lib/domain/machines"
 
 export type SaleItemOption = { value: string; kind: StockSaleKind; label: string; availableKg: number; gramsPerSock: number | null }
 
-const GROUPS: StockSaleKind[] = ["FINISHED", "DEFECT", "YARN"]
+const GROUPS: StockSaleKind[] = ["FINISHED", "DEFECT", "WASTE", "YARN"]
 
 /** Ombordan sotuv: nima, necha kg, qanchaga, kimga; to'lanmagani nasiyaga */
 export function StockSaleForm({ items, customers }: { items: SaleItemOption[]; customers: { name: string }[] }) {
@@ -32,7 +32,7 @@ export function StockSaleForm({ items, customers }: { items: SaleItemOption[]; c
   const totalNum = parseFloat(total)
   const paidNum = paid.trim() === "" ? totalNum : parseFloat(paid)
   const credit = totalNum > 0 && paidNum >= 0 && paidNum < totalNum ? totalNum - paidNum : 0
-  const groupLabel: Record<StockSaleKind, string> = { FINISHED: S.groupFinished, DEFECT: S.groupDefect, YARN: S.groupYarn }
+  const groupLabel: Record<StockSaleKind, string> = { FINISHED: S.groupFinished, DEFECT: S.groupDefect, WASTE: S.groupWaste, YARN: S.groupYarn }
 
   function reset() {
     setItem("")

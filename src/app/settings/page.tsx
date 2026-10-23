@@ -1,4 +1,4 @@
-import { addDevice, deleteDevice, getSettings, updateAutoTransfer, updateModules } from "@/lib/actions/settings"
+import { addDevice, deleteDevice, getSettings, updateAutoTransfer } from "@/lib/actions/settings"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ActionForm } from "@/components/ui/action-form"
@@ -9,7 +9,7 @@ import { Field, inputClass } from "@/components/ui/field"
 import { PageHeader } from "@/components/PageHeader"
 import { getLocale, getT } from "@/i18n/server"
 import { formatDateTime } from "@/lib/format"
-import { Settings2Icon, ScanFaceIcon, LayoutGridIcon, InfoIcon, TimerIcon } from "lucide-react"
+import { Settings2Icon, ScanFaceIcon, InfoIcon, TimerIcon } from "lucide-react"
 
 export default async function SettingsPage() {
   const [t, locale, data] = await Promise.all([getT(), getLocale(), getSettings()])
@@ -21,7 +21,7 @@ export default async function SettingsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
         <div className="space-y-8">
-        <Card className="shadow-sm border-none bg-white">
+        <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2"><TimerIcon className="w-5 h-5 text-green-600" />{S.autoTitle}</CardTitle>
             <CardDescription>{S.autoHint}</CardDescription>
@@ -35,27 +35,9 @@ export default async function SettingsPage() {
             </ActionForm>
           </CardContent>
         </Card>
-
-        <Card className="shadow-sm border-none bg-white">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2"><LayoutGridIcon className="w-5 h-5 text-indigo-600" />{S.modulesTitle}</CardTitle>
-            <CardDescription>{S.modulesHint}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ActionForm action={updateModules} successMessage={S.modulesSaved} className="space-y-2">
-              {data.modules.map(m => (
-                <label key={m.key} className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 p-3 cursor-pointer hover:bg-gray-50">
-                  <span className="text-sm font-semibold text-gray-800">{S.modules[m.key]}</span>
-                  <input type="checkbox" name="modules" value={m.key} defaultChecked={m.enabled} className="w-5 h-5 accent-indigo-600" />
-                </label>
-              ))}
-              <Button type="submit" className="w-full h-11 mt-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold">{t.common.save}</Button>
-            </ActionForm>
-          </CardContent>
-        </Card>
         </div>
 
-        <Card className="shadow-sm border-none bg-white">
+        <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2"><ScanFaceIcon className="w-5 h-5 text-sky-600" />{S.devicesTitle}</CardTitle>
             <CardDescription>{S.devicesHint}</CardDescription>
@@ -106,7 +88,7 @@ export default async function SettingsPage() {
       </div>
 
       {data.devices.length > 0 && (
-        <Card className="shadow-sm border-none bg-white overflow-hidden">
+        <Card className="overflow-hidden pb-0">
           <CardHeader>
             <CardTitle className="text-lg">{S.unknownPunches}</CardTitle>
             <CardDescription>{S.unknownHint}</CardDescription>
@@ -115,9 +97,9 @@ export default async function SettingsPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-gray-50/50">
-                  <TableHead className="px-4 font-bold">{S.pin}</TableHead>
-                  <TableHead className="px-4 font-bold">{S.lastPunch}</TableHead>
-                  <TableHead className="px-4 font-bold text-right">#</TableHead>
+                  <TableHead className="px-4">{S.pin}</TableHead>
+                  <TableHead className="px-4">{S.lastPunch}</TableHead>
+                  <TableHead className="px-4 text-right">#</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

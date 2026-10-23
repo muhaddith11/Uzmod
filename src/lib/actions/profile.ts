@@ -55,7 +55,7 @@ export const changeOwnPassword = action(async function changeOwnPassword(formDat
   if (input.newPassword !== input.repeatPassword) throw new ActionError(t.validation.passwordsMismatch)
 
   const user = await prisma.user.findUnique({ where: { id: me.id } })
-  if (!user || !(await bcrypt.compare(input.currentPassword, user.passwordHash))) {
+  if (!user?.passwordHash || !(await bcrypt.compare(input.currentPassword, user.passwordHash))) {
     throw new ActionError(t.profile.wrongCurrentPassword)
   }
 

@@ -28,7 +28,7 @@ export default async function CustomersPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
         <div className="lg:col-span-1 space-y-6">
-          <Card className="shadow-sm border-none bg-white">
+          <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <UserPlusIcon className="w-5 h-5 text-blue-600" />
@@ -55,7 +55,7 @@ export default async function CustomersPage() {
         </div>
 
         <div className="lg:col-span-3 space-y-6 min-w-0">
-          <Card className="shadow-sm border-none bg-white overflow-hidden">
+          <Card className="overflow-hidden pb-0">
             <CardHeader className="border-b border-gray-50">
               <CardTitle className="text-lg text-gray-700">{C.list}</CardTitle>
             </CardHeader>
@@ -63,10 +63,10 @@ export default async function CustomersPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-gray-50/50">
-                    <TableHead className="px-4 font-bold">{t.common.customer}</TableHead>
-                    <TableHead className="px-4 font-bold">{t.common.phone}</TableHead>
-                    <TableHead className="px-4 font-bold">{C.debt}</TableHead>
-                    <TableHead className="px-4 font-bold text-right">{t.common.actions}</TableHead>
+                    <TableHead className="px-4">{t.common.customer}</TableHead>
+                    <TableHead className="px-4">{t.common.phone}</TableHead>
+                    <TableHead className="px-4">{C.debt}</TableHead>
+                    <TableHead className="px-4 text-right">{t.common.actions}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -119,7 +119,7 @@ export default async function CustomersPage() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm border-none bg-white overflow-hidden">
+          <Card className="overflow-hidden pb-0">
             <CardHeader className="border-b border-gray-50">
               <CardTitle className="text-lg text-gray-700 flex items-center gap-2"><HistoryIcon className="w-5 h-5" />{C.paymentsTitle}</CardTitle>
             </CardHeader>

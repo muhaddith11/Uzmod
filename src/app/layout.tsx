@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Uzmod Ombor",
+  title: "Uzmod",
   description: "Tikuv sexi uchun ombor va ishlab chiqarish tizimi",
 };
 

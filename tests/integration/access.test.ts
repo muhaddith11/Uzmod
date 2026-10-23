@@ -57,7 +57,9 @@ describe("xodimlarni boshqarish", () => {
     expect((await setEmployeeActive(a.manager.id, false)).error).toMatch(/O'zingiz/)
     expect((await setEmployeeActive(b.worker.id, false)).error).toMatch(/topilmadi/)
     expect((await changeEmployeeRole(form({ userId: a.worker.id, role: "MANAGER" }))).error).toMatch(/ruxsat/)
-    expect((await createEmployee(form({ name: "Yangi", email: "m2@t.uz", password: "parol1234", role: "MANAGER" }))).error).toMatch(/admin/)
+    // Qo'shilgan xodim har doim sex ishchisi — lavozim formadan olinmaydi
+    expect(await createEmployee(form({ name: "Yangi", role: "MANAGER" }))).toEqual({})
+    expect((await prisma.user.findFirstOrThrow({ where: { organizationId: a.org.id, name: "Yangi" } })).role).toBe("WORKER")
   })
 
   it("admin lavozimni o'zgartiradi — token keyingi tekshiruvda yangi rolni oladi", async () => {
@@ -66,12 +68,13 @@ describe("xodimlarni boshqarish", () => {
     expect(await refreshTokenFromDb({ sub: a.worker.id, sv: 0 })).toMatchObject({ role: "MANAGER" })
   })
 
-  it("yangi xodim paroli kamida 8 belgi, email takrorlanmaydi", async () => {
+  it("yangi xodim — faqat ism; login va parol yozilmaydi", async () => {
     asUser(a.admin)
-    expect((await createEmployee(form({ name: "X", email: "x@t.uz", password: "123", role: "WORKER" }))).error).toMatch(/8/)
-    expect(await createEmployee(form({ name: "X", email: "X@T.uz", password: "12345678", role: "WORKER" }))).toEqual({})
-    expect((await createEmployee(form({ name: "Y", email: "x@t.uz", password: "12345678", role: "WORKER" }))).error).toMatch(/mavjud/)
-    expect((await prisma.user.findFirstOrThrow({ where: { name: "X" } })).email).toBe("x@t.uz")
+    expect((await createEmployee(form({ name: "" }))).error).toBeTruthy()
+    expect(await createEmployee(form({ name: "X", email: "x@t.uz", password: "12345678" }))).toEqual({})
+    expect(await createEmployee(form({ name: "Y" }))).toEqual({})
+    const x = await prisma.user.findFirstOrThrow({ where: { name: "X" } })
+    expect(x).toMatchObject({ email: null, passwordHash: null, role: "WORKER", organizationId: a.org.id })
   })
 })
 

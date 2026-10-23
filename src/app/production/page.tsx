@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ProductionForm } from "@/components/production/ProductionForm"
 import { PageHeader, pageClass } from "@/components/PageHeader"
 import { getLocale, getT } from "@/i18n/server"
-import { formatDateTime, formatMoney, formatNumber } from "@/lib/format"
+import { formatDateTime, formatMoney, formatNumber, personName } from "@/lib/format"
 import { HammerIcon, HistoryIcon, ArrowRightIcon } from "lucide-react"
 
 export default async function ProductionPage() {
@@ -27,7 +27,7 @@ export default async function ProductionPage() {
       <PageHeader icon={<HammerIcon className="text-purple-600" />} title={P.title} subtitle={P.subtitle} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-        <Card className="lg:col-span-1 shadow-md border-none bg-white">
+        <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <ArrowRightIcon className="w-5 h-5 text-purple-600" />
@@ -38,13 +38,13 @@ export default async function ProductionPage() {
             <ProductionForm
               finishedGoods={finishedGoods.map(p => ({ id: p.id, name: p.name, unit: p.unit }))}
               warehouses={warehouses.map(w => ({ id: w.id, name: w.name }))}
-              workers={workers.map(w => ({ id: w.id, name: w.name ?? w.email }))}
+              workers={workers.map(w => ({ id: w.id, name: personName(w) }))}
               chooseWorker={manager}
             />
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-2 shadow-sm border-none bg-white overflow-hidden min-w-0">
+        <Card className="lg:col-span-2 overflow-hidden min-w-0 pb-0">
           <CardHeader className="border-b border-gray-50">
             <CardTitle className="flex items-center gap-2 text-gray-700">
               <HistoryIcon className="w-5 h-5" />
@@ -55,12 +55,12 @@ export default async function ProductionPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-gray-50/50">
-                  <TableHead className="px-4 font-bold">{t.common.date}</TableHead>
-                  <TableHead className="px-4 font-bold">{t.common.product}</TableHead>
-                  <TableHead className="px-4 font-bold">{P.colQty}</TableHead>
-                  <TableHead className="px-4 font-bold">{P.colWorker}</TableHead>
-                  <TableHead className="px-4 font-bold">{t.common.warehouse}</TableHead>
-                  {manager && <TableHead className="px-4 font-bold">{P.colCost}</TableHead>}
+                  <TableHead className="px-4">{t.common.date}</TableHead>
+                  <TableHead className="px-4">{t.common.product}</TableHead>
+                  <TableHead className="px-4">{P.colQty}</TableHead>
+                  <TableHead className="px-4">{P.colWorker}</TableHead>
+                  <TableHead className="px-4">{t.common.warehouse}</TableHead>
+                  {manager && <TableHead className="px-4">{P.colCost}</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
